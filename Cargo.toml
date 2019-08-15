@@ -1,0 +1,13 @@
+[package]
+name = "tensorman"
+version = "0.1.0"
+authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
+edition = "2018"
+
+[dependencies]
+bitflags = "1.1.0"
+err-derive = "0.1.5"
+nix = "0.15.0"
+fern = "0.5.8"
+log = "0.4.8"
+rs-docker = "0.0.51"
