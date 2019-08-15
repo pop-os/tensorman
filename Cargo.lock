@@ -219,6 +219,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "tabular"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "unicode-width 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "tensorman"
 version = "0.1.0"
 dependencies = [
@@ -228,7 +236,13 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "nix 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rs-docker 0.0.51 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tabular 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "unicode-width"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "unicode-xid"
@@ -283,6 +297,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum serde_json 1.0.40 (registry+https://github.com/rust-lang/crates.io-index)" = "051c49229f282f7c6f3813f8286cc1e3323e8051823fce42c7ea80fe13521704"
 "checksum syn 0.15.44 (registry+https://github.com/rust-lang/crates.io-index)" = "9ca4b3b69a77cbe1ffc9e198781b7acb0c7365a883670e8f1c1bc66fba79a5c5"
 "checksum synstructure 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)" = "02353edf96d6e4dc81aea2d8490a7e9db177bf8acb0e951c24940bf866cb313f"
+"checksum tabular 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "fd6d034f956d33dd703abfe6d610a6c6070a606831e7306e1e9704d10c640e0a"
+"checksum unicode-width 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "882386231c45df4700b275c7ff55b6f3698780a650026380e72dabe76fa46526"
 "checksum unicode-xid 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fc72304796d0818e357ead4e000d19c9c174ab23dc11093ac919054d20a6a7fc"
 "checksum unix_socket 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6aa2700417c405c38f5e6902d699345241c28c0b7ade4abaad71e35a87eb1564"
 "checksum vcpkg 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)" = "33dd455d0f96e90a75803cfeb7f948768c08d70a6de9a8d2362461935698bf95"

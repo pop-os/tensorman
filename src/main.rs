@@ -8,6 +8,7 @@ mod image;
 use self::image::{Image, TagVariants};
 use rs_docker::Docker;
 use std::{env::args, io, process::exit};
+use tabular::{Row, Table};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -61,9 +62,11 @@ fn main_() -> Result<(), Error> {
     let result = match subcommand {
         "default" => unimplemented!(),
         "list" => {
-            let containers = docker.get_containers(false).map_err(Error::DockerContainers)?;
-            unimplemented!()
+            list(&mut docker)?;
+            Ok(())
         }
+        "pull" => image.pull(),
+        "remove" => unimplemented!(),
         "pull" => image.pull(),
         "remove" => unimplemented!(),
         "run" => {
@@ -80,6 +83,60 @@ fn main_() -> Result<(), Error> {
     };
 
     result.map_err(Error::Subcommand)
+}
+
+fn list(docker: &mut Docker) -> Result<(), Error> {
+    let mut images = docker.get_images(true).map_err(Error::DockerContainers)?;
+
+    #[derive(Debug)]
+    struct Info {
+        repo:     String,
+        tag:      String,
+        image_id: String,
+        created:  u64,
+        size:     u64,
+    }
+
+    fn valid_tag(tag: &str) -> bool {
+        tag.starts_with("nvidia/") || tag.starts_with("tensorflow/tensorflow:")
+    }
+
+    let iterator = images
+        .into_iter()
+        .filter(|image| !image.RepoTags.is_empty() && valid_tag(&*image.RepoTags[0]))
+        .flat_map(|mut image| {
+            let mut tags = Vec::new();
+            std::mem::swap(&mut tags, &mut image.RepoTags);
+            let rs_docker::image::Image { Created, Id, Size, .. } = image;
+
+            tags.into_iter().map(move |tag| {
+                let mut fields = tag.split(':');
+                let repo = fields.next().expect("image without a repo").to_owned();
+                let tag = fields.next().expect("image without a tag").to_owned();
+
+                Info { repo, tag, image_id: Id.clone(), created: Created, size: Size }
+            })
+        });
+
+    let mut table = Table::new("{:<}  {:<}  {:<}  {:<}");
+
+    table.add_row(
+        Row::new().with_cell("REPOSITORY").with_cell("TAG").with_cell("IMAGE ID").with_cell("SIZE"),
+    );
+
+    for info in iterator {
+        table.add_row(
+            Row::new()
+                .with_cell(info.repo)
+                .with_cell(info.tag)
+                .with_cell(info.image_id)
+                .with_cell(info.size),
+        );
+    }
+
+    print!("{}", table);
+
+    Ok(())
 }
 
 fn main() {
