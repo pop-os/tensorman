@@ -92,28 +92,16 @@ impl<'a> Display for Image<'a> {
         f.write_str(self.tag)?;
 
         if !self.variants.is_empty() {
-            f.write_char(':')?;
-
-            let mut tag_found = false;
-            let mut write_tag = move |tag: &'static str| -> fmt::Result {
-                if tag_found {
-                    f.write_char('-')?;
-                }
-
-                tag_found = true;
-                f.write_str(tag)
-            };
-
             if self.variants.contains(TagVariants::GPU) {
-                write_tag("gpu")?;
+                f.write_str("-gpu")?;
             }
 
             if self.variants.contains(TagVariants::PY3) {
-                write_tag("py3")?;
+                f.write_str("-py3")?;
             }
 
             if self.variants.contains(TagVariants::JUPYTER) {
-                write_tag("jupyter")?;
+                f.write_str("-jupyter")?;
             }
         }
 

@@ -99,6 +99,14 @@ fn main_() -> Result<(), Error> {
 
             image.run(cmd, if args.is_empty() { None } else { Some(&args) })
         }
+        "show" => {
+            if subcommand_args.is_empty() {
+                println!("{}", image);
+                Ok(())
+            } else {
+                unimplemented!()
+            }
+        }
         _ => panic!("unknown subcommand: {}", subcommand),
     };
 

@@ -61,7 +61,7 @@ Taking inspiration from [rustup], there are methods to set the container version
 
 If a version is specified following a `+` argument, `tensorman` will prefer this version.
 
-```dtd
+```
 tensorman +1.14 run bash
 ```
 
@@ -85,6 +85,14 @@ tensorman default nightly
 ```
 
 > By default, `tensorman` will use `latest` as the default per-user version tag.
+
+## Showing the active container version
+
+If you would like to know which container will be used when launched from the current working directory, you can use the `show` command.
+
+```
+tensorman show
+```
 
 ## Removing containers
 
