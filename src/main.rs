@@ -5,6 +5,7 @@ extern crate log;
 
 mod image;
 mod info;
+mod toolchain;
 
 use self::{
     image::{Image, TagVariants},
@@ -34,9 +35,17 @@ fn main_() -> Result<(), Error> {
     let mut docker =
         Docker::connect("unix:///var/run/docker.sock").map_err(Error::DockerConnection)?;
 
+    let image_buf;
+    let (mut tag, mut variants) = match toolchain::toolchain_override() {
+        Some(image) => {
+            image_buf = image;
+            (image_buf.tag.as_ref(), image_buf.variants)
+        }
+        None => ("latest", TagVariants::empty()),
+    };
+
     let arguments: Vec<String> = args().skip(1).collect();
     let mut arguments = arguments.iter();
-    let mut tag = "latest";
 
     // Allow the first argument, if it begins with `+`, to override the tag.
     let mut subcommand = arguments.next().and_then(|argument| {
@@ -50,7 +59,6 @@ fn main_() -> Result<(), Error> {
 
     let subcommand = subcommand.take().ok_or(Error::SubcommandRequired)?;
 
-    let mut variants = TagVariants::empty();
     let mut subcommand_args = Vec::new();
 
     while let Some(argument) = arguments.next() {
