@@ -62,7 +62,7 @@ Taking inspiration from [rustup], there are methods to set the container version
 If a version is specified following a `+` argument, `tensorman` will prefer this version.
 
 ```
-tensorman +1.14 run bash
+tensorman +1.14 run --python3 --gpu bash
 ```
 
 ### Setting per-project
@@ -71,7 +71,7 @@ If the `tensorflow-toolchain` file is found in the working directory, the releas
 
 ```
 # cat tensor-toolchain
-1.14 gpu
+1.14 gpu python3
 ```
 
 ### Setting per-user
@@ -80,7 +80,7 @@ you can set a default version user-wide using the `default` subcommand. This ver
 
 ```
 tensorman default 1.14
-tensorman default latest
+tensorman default latest gpu python3
 tensorman default nightly
 ```
 

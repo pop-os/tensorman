@@ -10,7 +10,7 @@ mod toolchain;
 
 use self::{
     config::{Config, Error as ConfigError},
-    image::{Image, TagVariants},
+    image::{Image, ImageBuf, TagVariants},
     info::{iterate_image_info, Info},
 };
 use rs_docker::{image::Image as DockerImage, Docker};
@@ -19,7 +19,7 @@ use tabular::{Row, Table};
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error(display = "failed to read configuration file")]
+    #[error(display = "configuration error")]
     Configure(#[error(cause)] ConfigError),
     #[error(display = "failed to establish a connection to the Docker service")]
     DockerConnection(#[error(cause)] io::Error),
@@ -39,11 +39,11 @@ fn main_() -> Result<(), Error> {
     let mut docker =
         Docker::connect("unix:///var/run/docker.sock").map_err(Error::DockerConnection)?;
 
-    let default = Config::read().map_err(Error::Configure)?;
+    let config = Config::read().map_err(Error::Configure)?;
     let toolchain_override = toolchain::toolchain_override();
 
     let (mut tag, mut variants) =
-        toolchain_override.as_ref().or_else(|| default.image.as_ref()).map_or_else(
+        toolchain_override.as_ref().or_else(|| config.image.as_ref()).map_or_else(
             || ("latest", TagVariants::empty()),
             |image| (image.tag.as_ref(), image.variants),
         );
@@ -69,7 +69,7 @@ fn main_() -> Result<(), Error> {
         match argument.as_str() {
             "--" => break,
             "--gpu" => variants |= TagVariants::GPU,
-            "--py3" => variants |= TagVariants::PY3,
+            "--python3" => variants |= TagVariants::PY3,
             "--jupyter" => variants |= TagVariants::JUPYTER,
             argument => subcommand_args.push(argument),
         }
@@ -78,14 +78,26 @@ fn main_() -> Result<(), Error> {
     let image = Image { tag, variants };
 
     let result = match subcommand {
-        "default" => unimplemented!(),
+        "default" => {
+            if subcommand_args.len() == 0 {
+                return Err(Error::RequiresArgument);
+            }
+
+            let tag: &str = subcommand_args[0];
+            let variants = arguments.map(|x| x.as_str()).collect::<TagVariants>();
+
+            let new_config = Config { image: Some(ImageBuf { tag: Box::from(tag), variants }) };
+
+            new_config.write().map_err(Error::Configure)?;
+            Ok(())
+        }
         "list" => {
             list(&mut docker)?;
             Ok(())
         }
         "pull" => image.pull(),
         "remove" => {
-            if subcommand_args.len() != 1 {
+            if subcommand_args.len() == 0 {
                 return Err(Error::RequiresArgument);
             }
 
@@ -94,7 +106,7 @@ fn main_() -> Result<(), Error> {
             Ok(())
         }
         "run" => {
-            if subcommand_args.len() != 1 {
+            if subcommand_args.len() == 0 {
                 return Err(Error::RequiresArgument);
             }
 

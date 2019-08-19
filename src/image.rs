@@ -24,13 +24,33 @@ impl<'a> std::iter::FromIterator<&'a str> for TagVariants {
         for variant in iterator {
             match variant {
                 "gpu" => variants |= TagVariants::GPU,
-                "py3" => variants |= TagVariants::PY3,
+                "python3" => variants |= TagVariants::PY3,
                 "jupyter" => variants |= TagVariants::JUPYTER,
                 _ => (),
             }
         }
 
         variants
+    }
+}
+
+impl From<TagVariants> for Vec<String> {
+    fn from(variants: TagVariants) -> Self {
+        let mut vector = Vec::new();
+
+        if variants.contains(TagVariants::GPU) {
+            vector.push("gpu".to_string());
+        }
+
+        if variants.contains(TagVariants::PY3) {
+            vector.push("python3".to_string());
+        }
+
+        if variants.contains(TagVariants::JUPYTER) {
+            vector.push("jupyter".to_string());
+        }
+
+        vector
     }
 }
 
