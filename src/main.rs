@@ -112,12 +112,12 @@ fn list(docker: &mut Docker) -> Result<(), Error> {
         Row::new().with_cell("REPOSITORY").with_cell("TAG").with_cell("IMAGE ID").with_cell("SIZE"),
     );
 
-    for info in iterate_images(images) {
+    for mut info in iterate_images(images) {
         table.add_row(
             Row::new()
                 .with_cell(info.repo)
                 .with_cell(info.tag)
-                .with_cell(info.image_id)
+                .with_cell(&info.image_id[..=14])
                 .with_cell(info.size),
         );
     }
