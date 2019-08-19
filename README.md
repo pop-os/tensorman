@@ -93,6 +93,7 @@ Having many containers installed simultaneously on the same system can quickly u
 ```
 tensorman remove 1.14
 tensorman remove latest
+tensorman remove 481cb7ea88260404
 ```
 
 ## Listing installed containers
