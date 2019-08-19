@@ -1,4 +1,5 @@
 use nix::unistd::geteuid;
+use serde::{de::Visitor, Deserialize, Deserializer};
 use std::{
     env,
     fmt::{self, Display, Write},
@@ -11,6 +12,25 @@ bitflags::bitflags! {
         const GPU = 1 << 0;
         const PY3 = 1 << 1;
         const JUPYTER = 1 << 2;
+    }
+}
+
+impl<'a> std::iter::FromIterator<&'a str> for TagVariants {
+    fn from_iter<I>(iterator: I) -> Self
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
+        let mut variants = TagVariants::empty();
+        for variant in iterator {
+            match variant {
+                "gpu" => variants |= TagVariants::GPU,
+                "py3" => variants |= TagVariants::PY3,
+                "jupyter" => variants |= TagVariants::JUPYTER,
+                _ => (),
+            }
+        }
+
+        variants
     }
 }
 

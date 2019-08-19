@@ -12,3 +12,6 @@ fern = "0.5.8"
 log = "0.4.8"
 rs-docker = "0.0.51"
 tabular = "0.1.2"
+xdg = "2.2.0"
+toml = "0.5.3"
+serde = { version = "1.0.99", features = ["derive"] }

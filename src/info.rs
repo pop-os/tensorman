@@ -17,7 +17,7 @@ impl Info {
     }
 }
 
-pub fn iterate_image_info(mut images: Vec<Image>) -> impl Iterator<Item = Info> {
+pub fn iterate_image_info(images: Vec<Image>) -> impl Iterator<Item = Info> {
     fn valid_tag(tag: &str) -> bool {
         tag.starts_with("nvidia/") || tag.starts_with("tensorflow/tensorflow:")
     }

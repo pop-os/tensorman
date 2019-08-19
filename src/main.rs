@@ -3,11 +3,13 @@ extern crate err_derive;
 #[macro_use]
 extern crate log;
 
+mod config;
 mod image;
 mod info;
 mod toolchain;
 
 use self::{
+    config::{Config, Error as ConfigError},
     image::{Image, TagVariants},
     info::{iterate_image_info, Info},
 };
@@ -17,6 +19,8 @@ use tabular::{Row, Table};
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error(display = "failed to read configuration file")]
+    Configure(#[error(cause)] ConfigError),
     #[error(display = "failed to establish a connection to the Docker service")]
     DockerConnection(#[error(cause)] io::Error),
     #[error(display = "failed to fetch list of docker containers")]
@@ -35,14 +39,14 @@ fn main_() -> Result<(), Error> {
     let mut docker =
         Docker::connect("unix:///var/run/docker.sock").map_err(Error::DockerConnection)?;
 
-    let image_buf;
-    let (mut tag, mut variants) = match toolchain::toolchain_override() {
-        Some(image) => {
-            image_buf = image;
-            (image_buf.tag.as_ref(), image_buf.variants)
-        }
-        None => ("latest", TagVariants::empty()),
-    };
+    let default = Config::read().map_err(Error::Configure)?;
+    let toolchain_override = toolchain::toolchain_override();
+
+    let (mut tag, mut variants) =
+        toolchain_override.as_ref().or_else(|| default.image.as_ref()).map_or_else(
+            || ("latest", TagVariants::empty()),
+            |image| (image.tag.as_ref(), image.variants),
+        );
 
     let arguments: Vec<String> = args().skip(1).collect();
     let mut arguments = arguments.iter();
