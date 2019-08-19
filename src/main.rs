@@ -4,9 +4,13 @@ extern crate err_derive;
 extern crate log;
 
 mod image;
+mod info;
 
-use self::image::{Image, TagVariants};
-use rs_docker::Docker;
+use self::{
+    image::{Image, TagVariants},
+    info::{iterate_image_info, Info},
+};
+use rs_docker::{image::Image as DockerImage, Docker};
 use std::{env::args, io, process::exit};
 use tabular::{Row, Table};
 
@@ -95,7 +99,7 @@ fn main_() -> Result<(), Error> {
 
 fn remove(docker: &mut Docker, argument: &str) -> Result<(), Error> {
     let images = get_images(docker)?;
-    for info in iterate_images(images) {
+    for info in iterate_image_info(images) {
         if info.field_matches(argument) {
             docker_remove_image(&info).map_err(Error::DockerRemove)?;
         }
@@ -112,7 +116,7 @@ fn list(docker: &mut Docker) -> Result<(), Error> {
         Row::new().with_cell("REPOSITORY").with_cell("TAG").with_cell("IMAGE ID").with_cell("SIZE"),
     );
 
-    for mut info in iterate_images(images) {
+    for mut info in iterate_image_info(images) {
         table.add_row(
             Row::new()
                 .with_cell(info.repo)
@@ -127,60 +131,14 @@ fn list(docker: &mut Docker) -> Result<(), Error> {
     Ok(())
 }
 
-fn get_images(docker: &mut Docker) -> Result<Vec<rs_docker::image::Image>, Error> {
-    docker.get_images(true).map_err(Error::DockerContainers)
-}
-
-#[derive(Debug)]
-struct Info {
-    repo:     Box<str>,
-    tag:      Box<str>,
-    image_id: Box<str>,
-    created:  u64,
-    size:     u64,
-}
-
-impl Info {
-    /// Check if any of the string fields matches the `needle`.
-    pub fn field_matches(&self, needle: &str) -> bool {
-        self.tag.as_ref() == needle || self.image_id.starts_with(needle)
-    }
-}
-
-fn iterate_images(mut images: Vec<rs_docker::image::Image>) -> impl Iterator<Item = Info> {
-    fn valid_tag(tag: &str) -> bool {
-        tag.starts_with("nvidia/") || tag.starts_with("tensorflow/tensorflow:")
-    }
-
-    images
-        .into_iter()
-        .filter(|image| !image.RepoTags.is_empty() && valid_tag(&*image.RepoTags[0]))
-        .flat_map(|mut image| {
-            let mut tags = Vec::new();
-            std::mem::swap(&mut tags, &mut image.RepoTags);
-            let rs_docker::image::Image { Created, Id, Size, .. } = image;
-
-            tags.into_iter().map(move |tag| {
-                let mut fields = tag.split(':');
-                let repo = fields.next().expect("image without a repo").to_owned();
-                let tag = fields.next().expect("image without a tag").to_owned();
-                let id = &Id[7..];
-
-                Info {
-                    repo:     repo.into(),
-                    tag:      tag.into(),
-                    image_id: id.into(),
-                    created:  Created.into(),
-                    size:     Size,
-                }
-            })
-        })
-}
-
 fn docker_remove_image(info: &Info) -> io::Result<()> {
     use std::process::Command;
 
     Command::new("docker").args(&["rmi", &info.image_id]).status().map(|_| ())
+}
+
+fn get_images(docker: &mut Docker) -> Result<Vec<DockerImage>, Error> {
+    docker.get_images(true).map_err(Error::DockerContainers)
 }
 
 fn main() {
