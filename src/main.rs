@@ -65,18 +65,24 @@ fn main_() -> Result<(), Error> {
 
     let mut subcommand_args = Vec::new();
 
+    let mut flagged_variants = TagVariants::empty();
+
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "-h" | "--help" => help(),
             "--" => break,
-            "--gpu" => variants |= TagVariants::GPU,
-            "--python3" => variants |= TagVariants::PY3,
-            "--jupyter" => variants |= TagVariants::JUPYTER,
+            "--gpu" => flagged_variants |= TagVariants::GPU,
+            "--python3" => flagged_variants |= TagVariants::PY3,
+            "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
             argument => subcommand_args.push(argument),
         }
     }
 
-    let image = Image { tag, variants };
+    if !flagged_variants.is_empty() {
+        variants = flagged_variants;
+    }
+
+    let mut image = Image { tag, variants };
 
     let result = match subcommand {
         "default" => {
@@ -85,7 +91,7 @@ fn main_() -> Result<(), Error> {
             }
 
             let tag: &str = subcommand_args[0];
-            let variants = arguments.map(|x| x.as_str()).collect::<TagVariants>();
+            let variants = subcommand_args.into_iter().skip(1).collect::<TagVariants>();
 
             let new_config = Config { image: Some(ImageBuf { tag: Box::from(tag), variants }) };
 
@@ -96,7 +102,14 @@ fn main_() -> Result<(), Error> {
             list(&mut docker)?;
             Ok(())
         }
-        "pull" => image.pull(),
+        "pull" => {
+            if let Some(tag) = subcommand_args.get(0) {
+                image.tag = tag;
+                image.variants = flagged_variants;
+            }
+
+            image.pull()
+        }
         "remove" => {
             if subcommand_args.is_empty() {
                 return Err(Error::RequiresArgument);
@@ -112,7 +125,7 @@ fn main_() -> Result<(), Error> {
             }
 
             let cmd: &str = subcommand_args[0];
-            let args: Vec<&str> = arguments.map(|x| x.as_str()).collect();
+            let args: Vec<&str> = subcommand_args.into_iter().skip(1).collect();
 
             image.run(cmd, if args.is_empty() { None } else { Some(&args) })
         }

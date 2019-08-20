@@ -54,6 +54,7 @@ impl From<TagVariants> for Vec<String> {
     }
 }
 
+#[derive(Debug)]
 pub struct ImageBuf {
     pub tag:      Box<str>,
     pub variants: TagVariants,

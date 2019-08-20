@@ -29,7 +29,7 @@ Which defaults to the latest version, and whose version and tag variants can be 
 By default, docker will automatically install a container when running a container that it is not already installed. However, if you would like to install a container beforehand, you may do so using the `pull` subcommand.
 
 ```
-tensorman pull 1.14
+tensorman pull 1.14.0
 tensorman pull latest
 ```
 
@@ -62,7 +62,7 @@ Taking inspiration from [rustup], there are methods to set the container version
 If a version is specified following a `+` argument, `tensorman` will prefer this version.
 
 ```
-tensorman +1.14 run --python3 --gpu bash
+tensorman +1.14.0 run --python3 --gpu bash
 ```
 
 ### Setting per-project
@@ -71,7 +71,7 @@ If the `tensorflow-toolchain` file is found in the working directory, the releas
 
 ```
 # cat tensor-toolchain
-1.14 gpu python3
+1.14.0 gpu python3
 ```
 
 ### Setting per-user
@@ -79,7 +79,7 @@ If the `tensorflow-toolchain` file is found in the working directory, the releas
 you can set a default version user-wide using the `default` subcommand. This version of Tensorflow will be launched whenever you use the `tensorman run` command.
 
 ```
-tensorman default 1.14
+tensorman default 1.14.0
 tensorman default latest gpu python3
 tensorman default nightly
 ```
@@ -99,7 +99,7 @@ tensorman show
 Having many containers installed simultaneously on the same system can quickly use a lot of disk storage. If you find yourself in need of culling the containers installed on your system, you may do so with the `remove` command.
 
 ```
-tensorman remove 1.14
+tensorman remove 1.14.0
 tensorman remove latest
 tensorman remove 481cb7ea88260404
 ```
