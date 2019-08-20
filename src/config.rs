@@ -1,6 +1,5 @@
 use crate::image::{ImageBuf, TagVariants};
 
-use nix::sys::socket::SockType::Raw;
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fs, io, path::PathBuf};
 use xdg::BaseDirectories;

@@ -1,8 +1,7 @@
 use nix::unistd::geteuid;
-use serde::{de::Visitor, Deserialize, Deserializer};
 use std::{
     env,
-    fmt::{self, Display, Write},
+    fmt::{self, Display},
     io,
     process::Command,
 };
@@ -60,9 +59,9 @@ pub struct ImageBuf {
     pub variants: TagVariants,
 }
 
-impl ImageBuf {
-    pub fn as_image(&self) -> Image { Image { tag: self.tag.as_ref(), variants: self.variants } }
-}
+// impl ImageBuf {
+//    pub fn as_image(&self) -> Image { Image { tag: self.tag.as_ref(), variants: self.variants } }
+//}
 
 /// A description of a Tensorflow Docker image, identified by its tag and tag variants.
 pub struct Image<'a> {

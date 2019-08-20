@@ -1,12 +1,12 @@
-use crate::Error;
-use rs_docker::image::Image;
+use bollard::image::APIImages;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug)]
 pub struct Info {
     pub repo:     Box<str>,
     pub tag:      Box<str>,
     pub image_id: Box<str>,
-    pub created:  u64,
+    pub created:  DateTime<Utc>,
     pub size:     u64,
 }
 
@@ -17,31 +17,32 @@ impl Info {
     }
 }
 
-pub fn iterate_image_info(images: Vec<Image>) -> impl Iterator<Item = Info> {
-    fn valid_tag(tag: &str) -> bool {
-        tag.starts_with("nvidia/") || tag.starts_with("tensorflow/tensorflow:")
-    }
+pub fn iterate_image_info(images: Vec<APIImages>) -> impl Iterator<Item = Info> {
+    fn valid_tag(tag: &str) -> bool { tag.starts_with("tensorflow/tensorflow:") }
 
     images
         .into_iter()
-        .filter(|image| !image.RepoTags.is_empty() && valid_tag(&*image.RepoTags[0]))
-        .flat_map(|mut image| {
+        .filter(|image| image.repo_tags.as_ref().map_or(false, |tags| valid_tag(&*tags[0])))
+        .flat_map(|image| {
+            let mut image_tags = image.repo_tags.unwrap();
+
             let mut tags = Vec::new();
-            std::mem::swap(&mut tags, &mut image.RepoTags);
-            let rs_docker::image::Image { Created, Id, Size, .. } = image;
+            std::mem::swap(&mut tags, &mut image_tags);
+
+            let APIImages { created, size, id, .. } = image;
 
             tags.into_iter().map(move |tag| {
                 let mut fields = tag.split(':');
                 let repo = fields.next().expect("image without a repo").to_owned();
                 let tag = fields.next().expect("image without a tag").to_owned();
-                let id = &Id[7..];
+                let id = &id[7..];
 
                 Info {
-                    repo:     repo.into(),
-                    tag:      tag.into(),
-                    image_id: id.into(),
-                    created:  Created.into(),
-                    size:     Size,
+                    repo: repo.into(),
+                    tag: tag.into(),
+                    image_id: Box::from(id),
+                    created: created.into(),
+                    size,
                 }
             })
         })

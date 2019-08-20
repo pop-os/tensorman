@@ -13,18 +13,23 @@ use self::{
     image::{Image, ImageBuf, TagVariants},
     info::{iterate_image_info, Info},
 };
-use rs_docker::{image::Image as DockerImage, Docker};
+// use rs_docker::{image::Image as DockerImage, Docker};
+use bollard::{
+    image::{APIImages, ListImagesOptions},
+    Docker,
+};
 use std::{env::args, io, process::exit};
 use tabular::{Row, Table};
+use tokio::runtime::Runtime as TokioRuntime;
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(display = "configuration error")]
     Configure(#[error(cause)] ConfigError),
     #[error(display = "failed to establish a connection to the Docker service")]
-    DockerConnection(#[error(cause)] io::Error),
-    #[error(display = "failed to fetch list of docker containers")]
-    DockerContainers(#[error(cause)] io::Error),
+    DockerConnection(#[error(cause)] failure::Compat<failure::Error>),
+    #[error(display = "failed to fetch list of docker images")]
+    DockerImages(#[error(cause)] failure::Compat<failure::Error>),
     #[error(display = "failed to remove docker image")]
     DockerRemove(#[error(cause)] io::Error),
     #[error(display = "subcommand requires at least one argument")]
@@ -36,9 +41,6 @@ pub enum Error {
 }
 
 fn main_() -> Result<(), Error> {
-    let mut docker =
-        Docker::connect("unix:///var/run/docker.sock").map_err(Error::DockerConnection)?;
-
     let config = Config::read().map_err(Error::Configure)?;
     let toolchain_override = toolchain::toolchain_override();
 
@@ -66,6 +68,8 @@ fn main_() -> Result<(), Error> {
     let mut subcommand_args = Vec::new();
 
     let mut flagged_variants = TagVariants::empty();
+    let mut docker_func: fn() -> Result<Docker, failure::Error> =
+        Docker::connect_with_local_defaults;
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -74,6 +78,7 @@ fn main_() -> Result<(), Error> {
             "--gpu" => flagged_variants |= TagVariants::GPU,
             "--python3" => flagged_variants |= TagVariants::PY3,
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
+            "--https" => docker_func = Docker::connect_with_tls_defaults,
             argument => subcommand_args.push(argument),
         }
     }
@@ -83,6 +88,13 @@ fn main_() -> Result<(), Error> {
     }
 
     let mut image = Image { tag, variants };
+
+    let mut runtime = Runtime {
+        docker: docker_func()
+            .map_err(|failure| failure.compat())
+            .map_err(Error::DockerConnection)?,
+        tokio:  TokioRuntime::new().unwrap(),
+    };
 
     let result = match subcommand {
         "default" => {
@@ -99,7 +111,7 @@ fn main_() -> Result<(), Error> {
             Ok(())
         }
         "list" => {
-            list(&mut docker)?;
+            runtime.list()?;
             Ok(())
         }
         "pull" => {
@@ -116,7 +128,7 @@ fn main_() -> Result<(), Error> {
             }
 
             let image: &str = subcommand_args[0];
-            remove(&mut docker, image)?;
+            runtime.remove(image)?;
             Ok(())
         }
         "run" => {
@@ -143,48 +155,63 @@ fn main_() -> Result<(), Error> {
     result.map_err(Error::Subcommand)
 }
 
-fn remove(docker: &mut Docker, argument: &str) -> Result<(), Error> {
-    let images = get_images(docker)?;
-    for info in iterate_image_info(images) {
-        if info.field_matches(argument) {
-            docker_remove_image(&info).map_err(Error::DockerRemove)?;
-        }
-    }
-
-    Ok(())
+pub struct Runtime {
+    docker: Docker,
+    tokio:  TokioRuntime,
 }
 
-fn list(docker: &mut Docker) -> Result<(), Error> {
-    let images = get_images(docker)?;
-    let mut table = Table::new("{:<}  {:<}  {:<}  {:<}");
-
-    table.add_row(
-        Row::new().with_cell("REPOSITORY").with_cell("TAG").with_cell("IMAGE ID").with_cell("SIZE"),
-    );
-
-    for mut info in iterate_image_info(images) {
-        table.add_row(
-            Row::new()
-                .with_cell(info.repo)
-                .with_cell(info.tag)
-                .with_cell(&info.image_id[..=14])
-                .with_cell(info.size),
-        );
+impl Runtime {
+    pub fn images(&mut self) -> Result<Vec<APIImages>, Error> {
+        let options = ListImagesOptions::<String> { all: true, ..Default::default() };
+        self.tokio
+            .block_on(self.docker.list_images(Some(options)))
+            .map_err(|failure| failure.compat())
+            .map_err(Error::DockerImages)
     }
 
-    print!("{}", table);
+    fn list(&mut self) -> Result<(), Error> {
+        let images = self.images()?;
+        let mut table = Table::new("{:<}  {:<}  {:<}  {:<}");
 
-    Ok(())
+        table.add_row(
+            Row::new()
+                .with_cell("REPOSITORY")
+                .with_cell("TAG")
+                .with_cell("IMAGE ID")
+                .with_cell("SIZE"),
+        );
+
+        for info in iterate_image_info(images) {
+            table.add_row(
+                Row::new()
+                    .with_cell(info.repo)
+                    .with_cell(info.tag)
+                    .with_cell(&info.image_id[..=14])
+                    .with_cell(info.size),
+            );
+        }
+
+        print!("{}", table);
+
+        Ok(())
+    }
+
+    fn remove(&mut self, argument: &str) -> Result<(), Error> {
+        let images = self.images()?;
+        for info in iterate_image_info(images) {
+            if info.field_matches(argument) {
+                docker_remove_image(&info).map_err(Error::DockerRemove)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 fn docker_remove_image(info: &Info) -> io::Result<()> {
     use std::process::Command;
 
     Command::new("docker").args(&["rmi", &info.image_id]).status().map(|_| ())
-}
-
-fn get_images(docker: &mut Docker) -> Result<Vec<DockerImage>, Error> {
-    docker.get_images(true).map_err(Error::DockerContainers)
 }
 
 const HELP: &str = "tensorman
@@ -218,6 +245,7 @@ FLAGS:
     --gpu         Uses an image which supports GPU compute
     --python3     Uses an image which supports Python3
     --jupyter     Usages an image which has Jupyter preinstalled
+    --https       Connect to Docker via HTTPS (defined in DOCKER_HOST env variable).
 
     -h, --help    Display this information";
 
