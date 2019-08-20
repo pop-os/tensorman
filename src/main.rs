@@ -67,6 +67,7 @@ fn main_() -> Result<(), Error> {
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
+            "-h" | "--help" => help(),
             "--" => break,
             "--gpu" => variants |= TagVariants::GPU,
             "--python3" => variants |= TagVariants::PY3,
@@ -79,7 +80,7 @@ fn main_() -> Result<(), Error> {
 
     let result = match subcommand {
         "default" => {
-            if subcommand_args.len() == 0 {
+            if subcommand_args.is_empty() {
                 return Err(Error::RequiresArgument);
             }
 
@@ -97,7 +98,7 @@ fn main_() -> Result<(), Error> {
         }
         "pull" => image.pull(),
         "remove" => {
-            if subcommand_args.len() == 0 {
+            if subcommand_args.is_empty() {
                 return Err(Error::RequiresArgument);
             }
 
@@ -106,7 +107,7 @@ fn main_() -> Result<(), Error> {
             Ok(())
         }
         "run" => {
-            if subcommand_args.len() == 0 {
+            if subcommand_args.is_empty() {
                 return Err(Error::RequiresArgument);
             }
 
@@ -123,7 +124,7 @@ fn main_() -> Result<(), Error> {
                 unimplemented!()
             }
         }
-        _ => panic!("unknown subcommand: {}", subcommand),
+        _ => help(),
     };
 
     result.map_err(Error::Subcommand)
@@ -173,9 +174,53 @@ fn get_images(docker: &mut Docker) -> Result<Vec<DockerImage>, Error> {
     docker.get_images(true).map_err(Error::DockerContainers)
 }
 
+const HELP: &str = "tensorman
+    Tensorflow Docker image manager
+
+USAGE:
+    tensorman [+TAG] SUBCOMMAND [FLAGS...]
+
+SUBCOMMANDS:
+    default TAG [VARIANTS...]
+        Defines the default tensorflow image to use when not specified
+
+    list
+        List tensorflow images installed on the system
+
+    pull [TAG]
+        Fetches and updates tensorflow images
+
+    remove ID
+        Removes an image either by its sha sum, or tag
+
+    run COMMAND [-- ARGS...]
+        Mounts an image and executes the given command.
+
+        Use a shell as the COMMAND interactive sessions.
+
+    show
+        Show the active image that will be run
+
+FLAGS:
+    --gpu         Uses an image which supports GPU compute
+    --python3     Uses an image which supports Python3
+    --jupyter     Usages an image which has Jupyter preinstalled
+
+    -h, --help    Display this information";
+
+fn help() -> ! {
+    println!("{}", HELP);
+    exit(0);
+}
+
 fn main() {
     if let Err(why) = main_() {
-        eprintln!("{}", why);
-        exit(1)
+        match why {
+            Error::SubcommandRequired => help(),
+            _ => {
+                eprintln!("{}", why);
+                exit(1)
+            }
+        }
     }
 }
