@@ -1,4 +1,7 @@
+.cargo
 .idea
 .vscode
 /target
+/vendor
+/vendor.tar
 **/*.rs.bk

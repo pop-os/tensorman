@@ -1,0 +1,15 @@
+#!/usr/bin/make -f
+
+export VENDOR ?= 1
+export prefix=/usr
+
+%:
+	dh $@
+
+override_dh_auto_clean:
+ifeq ($(VENDOR),1)
+	if ! ischroot; then make vendor; fi
+endif
+
+override_dh_auto_build:
+	env CARGO_HOME="$$(pwd)/target/cargo" make prefix=$(prefix)

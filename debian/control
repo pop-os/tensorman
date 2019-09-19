@@ -1,0 +1,19 @@
+Source: tensorman
+Section: admin
+Priority: optional
+Maintainer: System76 <info@system76.com>
+Build-Depends:
+  debhelper (>=9),
+  cargo,
+  libssl-dev,
+  pkg-config,
+  rustc (>=1.36.0)
+Standards-Version: 4.1.4
+Homepage: https://github.com/pop-os/firmware-manager
+
+Package: tensorman
+Architecture: amd64
+Depends:
+  ${misc:Depends},
+  ${shlib:Depends}
+Description: Tensorflow docker image manager

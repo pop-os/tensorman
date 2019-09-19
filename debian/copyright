@@ -1,0 +1,8 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: tensorman
+Source: https://github.com/pop-os/tensorman
+
+Files: *
+Copyright: Copyright 2019 System76
+License: MIT OR Apache-2.0
+
