@@ -15,5 +15,6 @@ Package: tensorman
 Architecture: amd64
 Depends:
   ${misc:Depends},
-  ${shlib:Depends}
+  ${shlib:Depends},
+  nvidia-container-runtime
 Description: Tensorflow docker image manager
