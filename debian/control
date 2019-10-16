@@ -17,5 +17,6 @@ Depends:
   ${misc:Depends},
   ${shlib:Depends},
   docker.io,
+Suggests:
   nvidia-container-runtime
 Description: Tensorflow docker image manager
