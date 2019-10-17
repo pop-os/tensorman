@@ -79,9 +79,18 @@ fn main_() -> Result<(), Error> {
             "--python3" => flagged_variants |= TagVariants::PY3,
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
             "--https" => docker_func = Docker::connect_with_tls_defaults,
-            argument => subcommand_args.push(argument),
+            argument => {
+                if argument.starts_with("-") {
+                    eprintln!("unknown argument to tensorman: {}", argument);
+                    help();
+                }
+
+                subcommand_args.push(argument)
+            },
         }
     }
+
+    subcommand_args.extend(arguments.map(|x| x.as_str()));
 
     if !flagged_variants.is_empty() {
         variants = flagged_variants;
