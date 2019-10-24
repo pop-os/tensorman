@@ -77,11 +77,19 @@ impl<'a> Image<'a> {
         command.status().map(|_| ())
     }
 
-    pub fn run(&self, cmd: &str, args: Option<&[&str]>) -> io::Result<()> {
+    pub fn run(&self, cmd: &str, as_root: bool, args: Option<&[&str]>) -> io::Result<()> {
         let pwd = env::current_dir()?;
         let mut command = Command::new("docker");
 
-        command.args(&["run", "-u", &format!("{0}:{0}", geteuid())]);
+        let user_: String;
+        let user: &str = if as_root {
+            "root"
+        } else {
+            user_ = format!("{0}:{0}", geteuid());
+            &*user_
+        };
+
+        command.args(&["run", "-u", &user]);
 
         if self.variants.contains(TagVariants::GPU) {
             command.arg("--gpus=all");

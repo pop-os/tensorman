@@ -67,6 +67,7 @@ fn main_() -> Result<(), Error> {
 
     let mut subcommand_args = Vec::new();
 
+    let mut as_root = false;
     let mut flagged_variants = TagVariants::empty();
     let mut docker_func: fn() -> Result<Docker, failure::Error> =
         Docker::connect_with_local_defaults;
@@ -79,6 +80,7 @@ fn main_() -> Result<(), Error> {
             "--python3" => flagged_variants |= TagVariants::PY3,
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
             "--https" => docker_func = Docker::connect_with_tls_defaults,
+            "--root" => as_root = true,
             argument => {
                 if argument.starts_with("-") {
                     eprintln!("unknown argument to tensorman: {}", argument);
@@ -86,7 +88,7 @@ fn main_() -> Result<(), Error> {
                 }
 
                 subcommand_args.push(argument)
-            },
+            }
         }
     }
 
@@ -148,7 +150,7 @@ fn main_() -> Result<(), Error> {
             let cmd: &str = subcommand_args[0];
             let args: Vec<&str> = subcommand_args.into_iter().skip(1).collect();
 
-            image.run(cmd, if args.is_empty() { None } else { Some(&args) })
+            image.run(cmd, as_root, if args.is_empty() { None } else { Some(&args) })
         }
         "show" => {
             if subcommand_args.is_empty() {
@@ -254,7 +256,8 @@ FLAGS:
     --gpu         Uses an image which supports GPU compute
     --python3     Uses an image which supports Python3
     --jupyter     Usages an image which has Jupyter preinstalled
-    --https       Connect to Docker via HTTPS (defined in DOCKER_HOST env variable).
+    --https       Connect to Docker via HTTPS (defined in DOCKER_HOST env variable)
+    --root        Run the docker container as root
 
     -h, --help    Display this information";
 
