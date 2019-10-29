@@ -84,7 +84,7 @@ impl<'a> Image<'a> {
         command.args(&["run", "-u", &format!("{0}:{0}", geteuid())]);
 
         if self.variants.contains(TagVariants::GPU) {
-            command.arg("--runtime=nvidia");
+            command.arg("--gpus=all");
         }
 
         command.args(&["-it", "--rm", "-v", &format!("{}:/project", pwd.display())]).args(&[
