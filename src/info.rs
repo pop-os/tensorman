@@ -13,12 +13,20 @@ pub struct Info {
 impl Info {
     /// Check if any of the string fields matches the `needle`.
     pub fn field_matches(&self, needle: &str) -> bool {
-        self.tag.as_ref() == needle || self.image_id.starts_with(needle)
+        match self.repo.as_ref() {
+            "tensorman" => self.tag.as_ref() == needle,
+            "tensorflow/tensorflow" => {
+                self.tag.as_ref() == needle || self.image_id.starts_with(needle)
+            }
+            _ => false,
+        }
     }
 }
 
 pub fn iterate_image_info(images: Vec<APIImages>) -> impl Iterator<Item = Info> {
-    fn valid_tag(tag: &str) -> bool { tag.starts_with("tensorflow/tensorflow:") }
+    fn valid_tag(tag: &str) -> bool {
+        tag.starts_with("tensorflow/tensorflow:") || tag.starts_with("tensorman:")
+    }
 
     images
         .into_iter()
@@ -37,13 +45,7 @@ pub fn iterate_image_info(images: Vec<APIImages>) -> impl Iterator<Item = Info> 
                 let tag = fields.next().expect("image without a tag").to_owned();
                 let id = &id[7..];
 
-                Info {
-                    repo: repo.into(),
-                    tag: tag.into(),
-                    image_id: Box::from(id),
-                    created: created.into(),
-                    size,
-                }
+                Info { repo: repo.into(), tag: tag.into(), image_id: Box::from(id), created, size }
             })
         })
 }

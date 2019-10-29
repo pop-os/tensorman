@@ -1,4 +1,4 @@
-use crate::image::{ImageBuf, TagVariants};
+use crate::image::{ImageBuf, ImageSourceBuf, TagVariants};
 
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fs, io, path::PathBuf};
@@ -6,18 +6,18 @@ use xdg::BaseDirectories;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error(display = "failed to get the base directory")]
-    BaseDirectory(#[error(cause)] xdg::BaseDirectoriesError),
-    #[error(display = "failed to get config path")]
-    ConfigPath(#[error(cause)] io::Error),
-    #[error(display = "failed to read configuration file into memory")]
-    ConfigRead(#[error(cause)] io::Error),
-    #[error(display = "failed to write serialized config to configuration file")]
-    ConfigWrite(#[error(cause)] io::Error),
-    #[error(display = "failed to create the tensorman configuration directory")]
-    CreateDir(#[error(cause)] io::Error),
-    #[error(display = "failed to deserialize the configuration file")]
-    Deserialize(#[error(cause)] toml::de::Error),
+    #[error("failed to get the base directory")]
+    BaseDirectory(#[source] xdg::BaseDirectoriesError),
+    #[error("failed to get config path")]
+    ConfigPath(#[source] io::Error),
+    #[error("failed to read configuration file into memory")]
+    ConfigRead(#[source] io::Error),
+    #[error("failed to write serialized config to configuration file")]
+    ConfigWrite(#[source] io::Error),
+    #[error("failed to create the tensorman configuration directory")]
+    CreateDir(#[source] io::Error),
+    #[error("failed to deserialize the configuration file")]
+    Deserialize(#[source] toml::de::Error),
 }
 
 pub struct Config {
@@ -34,18 +34,23 @@ impl TryFrom<RawConfig> for Config {
     type Error = Error;
 
     fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
-        let RawConfig { tag, variants } = raw;
-        let image = tag.map(|tag| {
-            let variants = variants.iter().flatten().map(String::as_str).collect::<TagVariants>();
-            ImageBuf { tag: tag.into(), variants }
-        });
+        let RawConfig { image, tag, variants } = raw;
 
-        Ok(Config { image })
+        let variants = variants.iter().flatten().map(String::as_str).collect::<TagVariants>();
+
+        let source = match (image, tag) {
+            (Some(image), _) => ImageSourceBuf::Container(image.into()),
+            (None, Some(tag)) => ImageSourceBuf::Tensorflow(tag.into()),
+            (None, None) => return Ok(Config { image: None }),
+        };
+
+        Ok(Config { image: Some(ImageBuf { variants, source }) })
     }
 }
 
 #[derive(Deserialize, Serialize)]
 struct RawConfig {
+    pub image:    Option<String>,
     pub tag:      Option<String>,
     pub variants: Option<Vec<String>>,
 }
@@ -77,22 +82,27 @@ impl RawConfig {
 }
 
 impl Default for RawConfig {
-    fn default() -> Self { Self { tag: None, variants: None } }
+    fn default() -> Self { Self { image: None, tag: None, variants: None } }
 }
 
 impl<'a> From<&'a Config> for RawConfig {
     fn from(config: &'a Config) -> Self {
-        let (tag, variants) = config.image.as_ref().map_or((None, None), |image| {
+        let (image, tag, variants) = config.image.as_ref().map_or((None, None, None), |image| {
             let variants = if image.variants.is_empty() {
                 None
             } else {
                 Some(<Vec<String>>::from(image.variants))
             };
 
-            (Some(image.tag.clone().into()), variants)
+            let (image, tag) = match &image.source {
+                ImageSourceBuf::Container(image) => (Some(String::from(&**image)), None),
+                ImageSourceBuf::Tensorflow(tag) => (None, Some(String::from(&**tag))),
+            };
+
+            (image, tag, variants)
         });
 
-        RawConfig { tag, variants }
+        RawConfig { image, tag, variants }
     }
 }
 

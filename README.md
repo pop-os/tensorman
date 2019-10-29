@@ -65,13 +65,26 @@ If a version is specified following a `+` argument, `tensorman` will prefer this
 tensorman +1.14.0 run --python3 --gpu bash
 ```
 
+Custom containers may be specified with a `=` argument.
+
+```
+tensorman =custom-container run --gpu bash
+```
+
 ### Setting per-project
 
 If the `tensorflow-toolchain` file is found in the working directory, the release tag and tag variants defined within it will override the user-wide default version. This is useful for setting the tensorflow project per-project.
 
+```toml
+tag = "1.14.0"
+variants = [ "gpu", "python3" ]
 ```
-# cat tensor-toolchain
-1.14.0 gpu python3
+
+Or specifying a image:
+
+```toml
+image = "custom-image"
+variants = [ "gpu" ]
 ```
 
 ### Setting per-user
@@ -94,7 +107,7 @@ If you would like to know which container will be used when launched from the cu
 tensorman show
 ```
 
-## Removing containers
+## Removing container images
 
 Having many containers installed simultaneously on the same system can quickly use a lot of disk storage. If you find yourself in need of culling the containers installed on your system, you may do so with the `remove` command.
 
@@ -102,9 +115,10 @@ Having many containers installed simultaneously on the same system can quickly u
 tensorman remove 1.14.0
 tensorman remove latest
 tensorman remove 481cb7ea88260404
+tensorman remove custom-image
 ```
 
-## Listing installed containers
+## Listing installed container images
 
 To aid in discovering what containers are installed on the system, the `list` subcommand is available.
 
@@ -112,6 +126,43 @@ To aid in discovering what containers are installed on the system, the `list` su
 tensorman list
 ```
 
+## Creating a custom image
+
+In most projects, you will need to pull in more dependencies than the base Tensorflow image has. To do this, you will need to create the image by running a tensorflow container as root, installing and setting up the environment how you need it, and then saving those changes as a new custom image.
+
+To do so, you will need to build the container in one terminal, and save it from another.
+
+### Build new image
+
+First launch a terminal where you will begin configuring the docker image:
+
+```
+tensorman run --gpu --python3 --root --name CONTAINER_NAME bash
+```
+
+Once you've made the changes needed, open another terminal and save it as a new image:
+
+```
+tensorman save CONTAINER_NAME IMAGE_NAME
+```
+
+### Running the custom image
+
+You should then be able to specify that container with tensorman, like so:
+
+```
+tensorman =IMAGE_NAME run --gpu bash
+```
+
+> The `--python3` and `--jupyter` flags do nothing for custom containers, but `--gpu` is required to enable runtime support for the GPU.
+
+### Removing the custom image
+
+Images saved through tensorman are manageable through tensorman. Listing and removing works the same:
+
+```
+tensorman remove IMAGE_NAME
+```
 
 ## License
 

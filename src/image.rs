@@ -1,6 +1,4 @@
-use nix::unistd::geteuid;
 use std::{
-    env,
     fmt::{self, Display},
     io,
     process::Command,
@@ -8,7 +6,7 @@ use std::{
 
 bitflags::bitflags! {
     pub struct TagVariants: u8 {
-        const GPU = 1 << 0;
+        const GPU = 1;
         const PY3 = 1 << 1;
         const JUPYTER = 1 << 2;
     }
@@ -55,18 +53,27 @@ impl From<TagVariants> for Vec<String> {
 
 #[derive(Debug)]
 pub struct ImageBuf {
-    pub tag:      Box<str>,
     pub variants: TagVariants,
+    pub source:   ImageSourceBuf,
 }
 
-// impl ImageBuf {
-//    pub fn as_image(&self) -> Image { Image { tag: self.tag.as_ref(), variants: self.variants } }
-//}
-
 /// A description of a Tensorflow Docker image, identified by its tag and tag variants.
+#[derive(Debug)]
 pub struct Image<'a> {
-    pub tag:      &'a str,
     pub variants: TagVariants,
+    pub source:   ImageSource<'a>,
+}
+
+#[derive(Debug)]
+pub enum ImageSourceBuf {
+    Container(Box<str>),
+    Tensorflow(Box<str>),
+}
+
+#[derive(Debug)]
+pub enum ImageSource<'a> {
+    Container(&'a str),
+    Tensorflow(&'a str),
 }
 
 impl<'a> Image<'a> {
@@ -76,83 +83,59 @@ impl<'a> Image<'a> {
         eprintln!("{:?}", command);
         command.status().map(|_| ())
     }
-
-    pub fn run(&self, cmd: &str, as_root: bool, args: Option<&[&str]>) -> io::Result<()> {
-        let pwd = env::current_dir()?;
-        let mut command = Command::new("docker");
-
-        let user_: String;
-        let user: &str = if as_root {
-            "root"
-        } else {
-            user_ = format!("{0}:{0}", geteuid());
-            &*user_
-        };
-
-        command.args(&["run", "-u", &user]);
-
-        if self.variants.contains(TagVariants::GPU) {
-            command.arg("--gpus=all");
-        }
-
-        command.args(&["-it", "--rm", "-v", &format!("{}:/project", pwd.display())]).args(&[
-            "-w",
-            "/project",
-            &String::from(self),
-            cmd,
-        ]);
-
-        if let Some(args) = args {
-            command.args(args);
-        }
-
-        eprintln!("{:?}", command);
-
-        command.status().map(|_| ())
-    }
 }
 
 impl<'a> From<&Image<'a>> for String {
-    fn from(image: &Image) -> String {
-        let mut buffer = ["tensorflow/tensorflow:", image.tag].concat();
+    fn from(image: &Image<'a>) -> Self {
+        match image.source {
+            ImageSource::Container(container) => ["tensorman:", container].concat(),
+            ImageSource::Tensorflow(tag) => {
+                let mut buffer = ["tensorflow/tensorflow:", tag].concat();
 
-        if !image.variants.is_empty() {
-            if image.variants.contains(TagVariants::GPU) {
-                buffer.push_str("-gpu");
-            }
+                if !image.variants.is_empty() {
+                    if image.variants.contains(TagVariants::GPU) {
+                        buffer.push_str("-gpu");
+                    }
 
-            if image.variants.contains(TagVariants::PY3) {
-                buffer.push_str("-py3");
-            }
+                    if image.variants.contains(TagVariants::PY3) {
+                        buffer.push_str("-py3");
+                    }
 
-            if image.variants.contains(TagVariants::JUPYTER) {
-                buffer.push_str("-jupyter");
+                    if image.variants.contains(TagVariants::JUPYTER) {
+                        buffer.push_str("-jupyter");
+                    }
+                }
+
+                buffer
             }
         }
-
-        buffer
     }
 }
 
 impl<'a> Display for Image<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("tensorflow/tensorflow:")?;
-        f.write_str(self.tag)?;
+        match self.source {
+            ImageSource::Container(container) => f.write_str(container),
+            ImageSource::Tensorflow(tag) => {
+                f.write_str("tensorflow/tensorflow:")?;
+                f.write_str(tag)?;
 
-        if !self.variants.is_empty() {
-            if self.variants.contains(TagVariants::GPU) {
-                f.write_str("-gpu")?;
-            }
+                if !self.variants.is_empty() {
+                    if self.variants.contains(TagVariants::GPU) {
+                        f.write_str("-gpu")?;
+                    }
 
-            if self.variants.contains(TagVariants::PY3) {
-                f.write_str("-py3")?;
-            }
+                    if self.variants.contains(TagVariants::PY3) {
+                        f.write_str("-py3")?;
+                    }
 
-            if self.variants.contains(TagVariants::JUPYTER) {
-                f.write_str("-jupyter")?;
+                    if self.variants.contains(TagVariants::JUPYTER) {
+                        f.write_str("-jupyter")?;
+                    }
+                }
+
+                Ok(())
             }
         }
-
-        Ok(())
     }
 }
