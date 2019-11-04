@@ -1,3 +1,4 @@
+use anyhow::Context;
 use bollard::{
     container::{APIContainers, ListContainersOptions},
     image::{APIImages, ListImagesOptions},
@@ -13,49 +14,6 @@ use std::{env, io, process::Command};
 use tabular::{Row, Table};
 use tokio::runtime::Runtime as TokioRuntime;
 
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("failed to establish a connection to the Docker service")]
-    Connection(#[source] failure::Compat<failure::Error>),
-    #[error("a container with the name of {} already exists", _0)]
-    ContainerExists(Box<str>),
-    #[error("a container with the name of {} does not exist", _0)]
-    ContainerNotFound(Box<str>),
-    #[error("failed to fetch a list of containers")]
-    Containers(#[source] failure::Compat<failure::Error>),
-    #[error("failed to commit container {} as a new image named {}", container, repo)]
-    Commit {
-        container: Box<str>,
-        repo: Box<str>,
-        #[source]
-        source: io::Error,
-    },
-    #[error("image to be committed already exists")]
-    ImageAlreadyExists,
-    #[error("failed to fetch list of docker images")]
-    Images(#[source] failure::Compat<failure::Error>),
-    #[error("image not found")]
-    ImageNotFound,
-    #[error("failed to remove docker image")]
-    Remove(#[source] io::Error),
-    #[error("failed to run container")]
-    Run(#[from] RunError),
-}
-
-#[derive(Debug, Error)]
-pub enum RunError {
-    #[error("docker run command exited with a bad status")]
-    BadStatus(#[source] io::Error),
-    #[error("unable to get the current working directory")]
-    CurrentDir(#[source] io::Error),
-    #[error("unable to create tempfile for image to be run")]
-    CreateTempFile(#[source] io::Error),
-    #[error("unable to create local data directory for tensorman")]
-    TensorDataDir(#[source] io::Error),
-    #[error("unable to write container name to temporary file")]
-    WriteContainerName(#[source] io::Error),
-}
-
 /// Runtime for executing Docker futures on.
 pub struct Runtime {
     pub docker: Docker,
@@ -64,33 +22,35 @@ pub struct Runtime {
 
 impl Runtime {
     /// Creates a new runtime for interacting with Docker.
-    pub fn new(docker_func: fn() -> Result<Docker, failure::Error>) -> Result<Self, Error> {
+    pub fn new(docker_func: fn() -> Result<Docker, failure::Error>) -> anyhow::Result<Self> {
         Ok(Self {
-            docker: docker_func().map_err(|failure| failure.compat()).map_err(Error::Connection)?,
-            tokio:  TokioRuntime::new().unwrap(),
+            docker: docker_func()
+                .map_err(|failure| failure.compat())
+                .context("failed to establish a connection to the Docker service")?,
+            tokio:  TokioRuntime::new().context("failed to create tokio runtime")?,
         })
     }
 
     /// Fetches a list of docker containers.
-    pub fn containers(&mut self) -> Result<Vec<APIContainers>, Error> {
+    pub fn containers(&mut self) -> anyhow::Result<Vec<APIContainers>> {
         let options = ListContainersOptions::<String> { all: true, ..Default::default() };
         self.tokio
             .block_on(self.docker.list_containers(Some(options)))
             .map_err(|failure| failure.compat())
-            .map_err(Error::Containers)
+            .context("failed to fetch list of containers from Docker service")
     }
 
     /// Fetches a list of docker images.
-    pub fn images(&mut self) -> Result<Vec<APIImages>, Error> {
+    pub fn images(&mut self) -> anyhow::Result<Vec<APIImages>> {
         let options = ListImagesOptions::<String> { all: true, ..Default::default() };
         self.tokio
             .block_on(self.docker.list_images(Some(options)))
             .map_err(|failure| failure.compat())
-            .map_err(Error::Images)
+            .context("failed to fetch list of images from Docker service")
     }
 
     /// Displays docker images currently installed which are relevant to tensorman.
-    pub fn list(&mut self) -> Result<(), Error> {
+    pub fn list(&mut self) -> anyhow::Result<()> {
         let images = self.images()?;
         let mut table = Table::new("{:<}  {:<}  {:<}  {:<}");
 
@@ -118,29 +78,18 @@ impl Runtime {
     }
 
     /// Removes a Docker image from the system.
-    pub fn remove(&mut self, argument: &str) -> Result<(), Error> {
+    pub fn remove(&mut self, argument: &str) -> anyhow::Result<()> {
         let images = self.images()?;
         let mut found = false;
         for info in iterate_image_info(images) {
             if info.field_matches(argument) {
                 found = true;
-                docker_remove_image(&info).map_err(Error::Remove)?;
+                docker_remove_image(&info).context("failed to remove the docker image")?;
             }
         }
 
-        if found {
-            Ok(())
-        } else {
-            Err(Error::ImageNotFound)
-        }
-    }
-
-    pub fn validate_image_does_not_exist(&mut self, image: &str) -> Result<(), Error> {
-        let images = self.images()?;
-        for info in iterate_image_info(images) {
-            if info.repo.as_ref() == "tensorman" && info.tag.as_ref() == image {
-                return Err(Error::ImageAlreadyExists);
-            }
+        if !found {
+            return Err(anyhow!("image not found"));
         }
 
         Ok(())
@@ -154,8 +103,9 @@ impl Runtime {
         name: Option<&str>,
         as_root: bool,
         args: Option<&[&str]>,
-    ) -> Result<(), Error> {
-        let pwd = env::current_dir().map_err(RunError::CurrentDir)?;
+    ) -> anyhow::Result<()> {
+        let pwd = env::current_dir().context("unable to get the current working directory")?;
+
         let mut command = Command::new("docker");
 
         let user_: String;
@@ -170,7 +120,11 @@ impl Runtime {
 
         if let Some(name) = name {
             let name: &str = &*["tensorman-", name].concat();
-            self.validate_container_uniqueness(name)?;
+            ensure!(
+                !self.container_exists(name)?,
+                "an active container named {} already exists",
+                name
+            );
             command.arg("--name").arg(name);
         }
 
@@ -194,15 +148,22 @@ impl Runtime {
         }
 
         eprintln!("{:?}", command);
-        command.status().map_err(RunError::BadStatus)?;
+        command.status().context("docker run command exited with a bad status")?;
         Ok(())
     }
 
     /// Saves an active container to a new image in the tensorman repository
-    pub fn save(&mut self, container: &str, repo: &str) -> Result<(), Error> {
+    pub fn save(&mut self, container: &str, repo: &str) -> anyhow::Result<()> {
         let container: &str = &*["tensorman-", container].concat();
-        self.validate_container_exists(container)?;
-        self.validate_image_does_not_exist(repo)?;
+
+        ensure!(self.container_exists(container)?, "the container to be saved does not exist");
+
+        let images = self.images()?;
+        for info in iterate_image_info(images) {
+            if info.repo.as_ref() == "tensorman" && info.tag.as_ref() == repo {
+                return Err(anyhow!("image already exists with this name"));
+            }
+        }
 
         // TODO: This isn't working for some reason.
         // let options = CommitContainerOptions {
@@ -217,45 +178,21 @@ impl Runtime {
         // let config = ContainerConfig::<String> { ..Default::default() };
         // let future = self.docker.commit_container(options, config);
 
-        // self.tokio.block_on(future).map_err(|failure| failure.compat()).map_err(|source| {
-        //     Error::Commit { container: container.into(), repo: repo.into(), source }
-        // })?;
+        // self.tokio.block_on(future).map_err(|failure| failure.compat())
 
-        commit_command(container, repo).map_err(|source| Error::Commit {
-            container: container.into(),
-            repo: repo.into(),
-            source,
-        })?;
+        commit_command(container, repo).context("failed to commit container")?;
 
         Ok(())
     }
 
     /// Queries docker for a list of containers, and returns `Ok(true)` if container
     /// with a compatible name is found.
-    fn container_exists(&mut self, name: &str) -> Result<bool, Error> {
+    fn container_exists(&mut self, name: &str) -> anyhow::Result<bool> {
         let contains_name =
             |vec: &[String]| vec.iter().filter(|s| !s.is_empty()).any(|e| &e[1..] == name);
 
         self.containers()
             .map(|cts| cts.into_iter().any(|container| contains_name(&container.names)))
-    }
-
-    /// Errors if a container with the `name` is not found.
-    fn validate_container_exists(&mut self, name: &str) -> Result<(), Error> {
-        if self.container_exists(name)? {
-            Ok(())
-        } else {
-            Err(Error::ContainerNotFound(name.into()))
-        }
-    }
-
-    /// Errors if a container with the `name` is found.
-    fn validate_container_uniqueness(&mut self, name: &str) -> Result<(), Error> {
-        if self.container_exists(name)? {
-            Err(Error::ContainerExists(name.into()))
-        } else {
-            Ok(())
-        }
     }
 }
 
