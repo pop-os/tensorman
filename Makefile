@@ -25,7 +25,7 @@ $(BIN): vendor-check
 	cargo build $(ARGS)
 
 install:
-	install -Dm0744 $(BIN) $(DESTDIR)$(bindir)/$(NAME)
+	install -Dm0755 $(BIN) $(DESTDIR)$(bindir)/$(NAME)
 
 vendor:
 	rm .cargo -rf
