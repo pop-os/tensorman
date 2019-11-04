@@ -1,4 +1,6 @@
 #[macro_use]
+extern crate anyhow;
+#[macro_use]
 extern crate thiserror;
 
 mod config;
@@ -7,6 +9,7 @@ mod info;
 mod runtime;
 mod toolchain;
 
+use anyhow::Context;
 use bollard::Docker;
 
 use self::{
@@ -15,24 +18,16 @@ use self::{
     runtime::Runtime,
 };
 
-use std::{env::args, error::Error as _, io, process::exit};
+use std::{env::args, error::Error as _, process::exit};
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("invalid command-line usage")]
+    ArgumentUsage(#[source] anyhow::Error),
     #[error("configuration error")]
     Configure(#[source] ConfigError),
-    #[error("docker error")]
-    Docker(#[from] runtime::Error),
-    #[error("the --name flag requires a name as an argument")]
-    NameFlag,
-    #[error("subcommand requires at least one argument")]
-    RequiresArgument,
-    #[error("a name for the new image must be given")]
-    SaveAsArgument,
-    #[error("subcommand failed")]
-    Subcommand(#[source] io::Error),
-    #[error("missing subcommand argument")]
-    SubcommandRequired,
+    #[error("an error with docker was encountered")]
+    Docker(#[source] anyhow::Error),
 }
 
 fn main_() -> Result<(), Error> {
@@ -68,7 +63,10 @@ fn main_() -> Result<(), Error> {
         }
     });
 
-    let subcommand = subcommand.take().ok_or(Error::SubcommandRequired)?;
+    let subcommand = subcommand
+        .take()
+        .context("tensorman must be given a subcommand to execute")
+        .map_err(Error::ArgumentUsage)?;
 
     let mut subcommand_args = Vec::new();
 
@@ -86,7 +84,13 @@ fn main_() -> Result<(), Error> {
             "--https" => docker_func = Docker::connect_with_tls_defaults,
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
             "--name" => {
-                name = Some(arguments.next().ok_or(Error::NameFlag)?.as_str());
+                name = Some(
+                    arguments
+                        .next()
+                        .context("the --name flag requires a name as an argument")
+                        .map_err(Error::ArgumentUsage)?
+                        .as_str(),
+                );
             }
             "--python3" => flagged_variants |= TagVariants::PY3,
             "--root" => as_root = true,
@@ -102,6 +106,7 @@ fn main_() -> Result<(), Error> {
     }
 
     subcommand_args.extend(arguments.map(|x| x.as_str()));
+    let mut subcommand_args = subcommand_args.into_iter();
 
     if !flagged_variants.is_empty() {
         variants = flagged_variants;
@@ -115,12 +120,16 @@ fn main_() -> Result<(), Error> {
         },
     };
 
-    let mut runtime = Runtime::new(docker_func)?;
+    let mut runtime = Runtime::new(docker_func).map_err(Error::Docker)?;
 
     match subcommand {
         "default" => {
-            let tag = argument_required(&subcommand_args)?;
-            let variants = subcommand_args.into_iter().skip(1).collect::<TagVariants>();
+            let tag = subcommand_args
+                .next()
+                .context("a tag must be provided for the default subcommand")
+                .map_err(Error::ArgumentUsage)?;
+
+            let variants = subcommand_args.collect::<TagVariants>();
 
             let new_config = Config {
                 image: Some(ImageBuf { variants, source: ImageSourceBuf::Tensorflow(tag.into()) }),
@@ -129,34 +138,59 @@ fn main_() -> Result<(), Error> {
             new_config.write().map_err(Error::Configure)?;
         }
         "list" => {
-            runtime.list()?;
+            runtime.list().map_err(Error::Docker)?;
         }
         "pull" => {
-            if let Some(tag) = subcommand_args.get(0) {
+            if let Some(tag) = subcommand_args.next() {
                 image.source = ImageSource::Tensorflow(tag);
                 image.variants = flagged_variants;
             }
 
-            image.pull().map_err(Error::Subcommand)?;
+            image.pull().context("failed to pull image").map_err(Error::Docker)?;
         }
         "remove" => {
-            let image = argument_required(&subcommand_args)?;
-            runtime.remove(image)?;
+            let image = subcommand_args
+                .next()
+                .context("an image must be provided for the remove subcommand")
+                .map_err(Error::ArgumentUsage)?;
+
+            runtime
+                .remove(image)
+                .with_context(|| format!("failed to remove container '{}'", image))
+                .map_err(Error::Docker)?;
         }
         "run" => {
-            let cmd = argument_required(&subcommand_args)?;
-            let args: Vec<&str> = subcommand_args.into_iter().skip(1).collect();
+            let cmd = subcommand_args
+                .next()
+                .context("run subcommand requires a command argument")
+                .map_err(Error::ArgumentUsage)?;
 
+            let args: Vec<&str> = subcommand_args.collect();
             let args: Option<&[&str]> = if args.is_empty() { None } else { Some(&args) };
-            runtime.run(&image, cmd, name, as_root, args)?;
+
+            runtime
+                .run(&image, cmd, name, as_root, args)
+                .context("failed to run container")
+                .map_err(Error::Docker)?;
         }
         "save" => {
-            let container = argument_required(&subcommand_args)?;
-            let save_as: &str = subcommand_args.get(1).ok_or(Error::SaveAsArgument)?;
-            runtime.save(container, save_as)?;
+            let container = subcommand_args
+                .next()
+                .context("save subcommand requires a container name as a source")
+                .map_err(Error::ArgumentUsage)?;
+
+            let image = subcommand_args
+                .next()
+                .context("save subcommand requires an image name as the destination")
+                .map_err(Error::ArgumentUsage)?;
+
+            runtime
+                .save(container, image)
+                .with_context(|| format!("failed to save container '{}' as '{}'", container, image))
+                .map_err(Error::Docker)?;
         }
         "show" => {
-            if subcommand_args.is_empty() {
+            if subcommand_args.len() == 0 {
                 println!("{}", image);
             } else {
                 unimplemented!()
@@ -166,14 +200,6 @@ fn main_() -> Result<(), Error> {
     }
 
     Ok(())
-}
-
-fn argument_required<'a>(args: &[&'a str]) -> Result<&'a str, Error> {
-    if args.is_empty() {
-        Err(Error::RequiresArgument)
-    } else {
-        Ok(args[0])
-    }
 }
 
 const HELP: &str = "tensorman
@@ -236,18 +262,17 @@ fn help() -> ! {
 
 fn main() {
     if let Err(why) = main_() {
-        match why {
-            Error::SubcommandRequired => help(),
-            _ => {
-                eprintln!("tensorman: {}", why);
-                let mut source = why.source();
-                while let Some(why) = source {
-                    eprintln!("    caused by: {}", why);
-                    source = why.source();
-                }
-
-                exit(1)
-            }
+        eprintln!("tensorman: {}", why);
+        let mut source = why.source();
+        while let Some(why) = source {
+            eprintln!("    caused by: {}", why);
+            source = why.source();
         }
+
+        if let Error::ArgumentUsage(_) = why {
+            help()
+        }
+
+        exit(1);
     }
 }
