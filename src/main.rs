@@ -151,15 +151,18 @@ fn main_() -> Result<(), Error> {
             image.pull().context("failed to pull image").map_err(Error::Docker)?;
         }
         "remove" => {
-            let image = subcommand_args
-                .next()
-                .context("an image must be provided for the remove subcommand")
-                .map_err(Error::ArgumentUsage)?;
+            if subcommand_args.len() == 0 {
+                return Err(Error::ArgumentUsage(anyhow!(
+                    "an image must be provided for the remove subcommand"
+                )));
+            }
 
-            runtime
-                .remove(image, force)
-                .with_context(|| format!("failed to remove container '{}'", image))
-                .map_err(Error::Docker)?;
+            for image in subcommand_args {
+                runtime
+                    .remove(image, force)
+                    .with_context(|| format!("failed to remove container '{}'", image))
+                    .map_err(Error::Docker)?;
+            }
         }
         "run" => {
             let cmd = subcommand_args
