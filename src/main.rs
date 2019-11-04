@@ -71,6 +71,7 @@ fn main_() -> Result<(), Error> {
     let mut subcommand_args = Vec::new();
 
     let mut as_root = false;
+    let mut force = false;
     let mut flagged_variants = TagVariants::empty();
     let mut name = None;
     let mut docker_func: fn() -> Result<Docker, failure::Error> =
@@ -80,6 +81,7 @@ fn main_() -> Result<(), Error> {
         match argument.as_str() {
             "-h" | "--help" => help(),
             "--" => break,
+            "-f" | "--force" => force = true,
             "--gpu" => flagged_variants |= TagVariants::GPU,
             "--https" => docker_func = Docker::connect_with_tls_defaults,
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
@@ -155,7 +157,7 @@ fn main_() -> Result<(), Error> {
                 .map_err(Error::ArgumentUsage)?;
 
             runtime
-                .remove(image)
+                .remove(image, force)
                 .with_context(|| format!("failed to remove container '{}'", image))
                 .map_err(Error::Docker)?;
         }
@@ -234,17 +236,20 @@ SUBCOMMANDS:
         Show the active image that will be run
 
 FLAGS:
+    -f, --force
+        Apply the subcommand by force (ie: force removal)
+
     --gpu
         Uses an image which supports GPU compute
+    
+    --https
+        Connect to Docker via HTTPS (defined in DOCKER_HOST env variable)
 
     --jupyter
         Usages an image which has Jupyter preinstalled
 
-    --https
-        Connect to Docker via HTTPS (defined in DOCKER_HOST env variable)
-
     --name NAME
-        Gives NAME to the container when it is launched.
+        Gives NAME to the container when it is launched
 
     --python3
         Uses an image which supports Python3

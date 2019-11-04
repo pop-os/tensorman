@@ -78,13 +78,13 @@ impl Runtime {
     }
 
     /// Removes a Docker image from the system.
-    pub fn remove(&mut self, argument: &str) -> anyhow::Result<()> {
+    pub fn remove(&mut self, argument: &str, force: bool) -> anyhow::Result<()> {
         let images = self.images()?;
         let mut found = false;
         for info in iterate_image_info(images) {
             if info.field_matches(argument) {
                 found = true;
-                docker_remove_image(&info).context("failed to remove the docker image")?;
+                docker_remove_image(&info, force).context("failed to remove the docker image")?;
             }
         }
 
@@ -201,6 +201,13 @@ fn commit_command(container: &str, repo: &str) -> io::Result<()> {
     Command::new("docker").args(&["commit", container, &image]).status().map(|_| ())
 }
 
-fn docker_remove_image(info: &Info) -> io::Result<()> {
-    Command::new("docker").args(&["rmi", &info.image_id]).status().map(|_| ())
+fn docker_remove_image(info: &Info, force: bool) -> io::Result<()> {
+    let mut command = Command::new("docker");
+    command.args(&["rmi", &info.image_id]);
+
+    if force {
+        command.arg("--force");
+    }
+
+    command.status().map(|_| ())
 }
