@@ -133,11 +133,15 @@ fn main_() -> Result<(), Error> {
                 .context("a tag must be provided for the default subcommand")
                 .map_err(Error::ArgumentUsage)?;
 
+            let source = if tag.starts_with('=') {
+                ImageSourceBuf::Container(tag[1..].into())
+            } else {
+                ImageSourceBuf::Tensorflow(tag.into())
+            };
+
             let variants = subcommand_args.collect::<TagVariants>();
 
-            let new_config = Config {
-                image: Some(ImageBuf { variants, source: ImageSourceBuf::Tensorflow(tag.into()) }),
-            };
+            let new_config = Config { image: Some(ImageBuf { variants, source }) };
 
             new_config.write().map_err(Error::Configure)?;
         }
