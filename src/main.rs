@@ -293,15 +293,15 @@ fn help() -> ! {
 
 fn main() {
     if let Err(why) = main_() {
+        if let Error::ArgumentUsage(_) = why {
+            println!("{}\n\n", HELP)
+        }
+
         eprintln!("tensorman: {}", why);
         let mut source = why.source();
         while let Some(why) = source {
             eprintln!("    caused by: {}", why);
             source = why.source();
-        }
-
-        if let Error::ArgumentUsage(_) = why {
-            help()
         }
 
         exit(1);
