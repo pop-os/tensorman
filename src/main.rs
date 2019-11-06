@@ -6,6 +6,7 @@ extern crate thiserror;
 mod config;
 mod image;
 mod info;
+mod misc;
 mod runtime;
 mod toolchain;
 

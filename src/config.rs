@@ -1,11 +1,11 @@
-use crate::image::{ImageBuf, ImageSourceBuf, TagVariants};
+use crate::{
+    image::{ImageBuf, ImageSourceBuf, TagVariants},
+    misc::walk_parent_directories,
+};
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::PathBuf};
 use xdg::BaseDirectories;
 
 pub struct Config {
@@ -133,19 +133,3 @@ fn user_path() -> anyhow::Result<PathBuf> {
         .context("failed to fetch the user-wide Tensorman config path")
 }
 
-/// Walks up the directory tree to find a file
-fn walk_parent_directories(origin: &Path, file: &str) -> Option<PathBuf> {
-    let mut next = Some(origin);
-
-    while let Some(parent) = next {
-        let config = parent.join(file);
-
-        if config.exists() {
-            return Some(config);
-        }
-
-        next = parent.parent();
-    }
-
-    None
-}
