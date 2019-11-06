@@ -72,8 +72,10 @@ fn main_() -> Result<(), Error> {
 
     let mut as_root = false;
     let mut force = false;
+
     let mut flagged_variants = TagVariants::empty();
     let mut name = None;
+
     let mut docker_func: fn() -> Result<Docker, failure::Error> =
         Docker::connect_with_local_defaults;
 

@@ -76,15 +76,13 @@ tensorman =custom-container run --gpu bash
 If the `tensorflow-toolchain` file is found in the working directory, the release tag and tag variants defined within it will override the user-wide default version. This is useful for setting the tensorflow project per-project.
 
 ```toml
-tag = "1.14.0"
-variants = [ "gpu", "python3" ]
+1.14.0 gpu python3
 ```
 
 Or specifying a image:
 
 ```toml
-image = "custom-image"
-variants = [ "gpu" ]
+=custom-image gpu
 ```
 
 ### Setting per-user

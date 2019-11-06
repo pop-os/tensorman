@@ -7,7 +7,11 @@ pub fn toolchain_override() -> Option<ImageBuf> {
 
         Some(ImageBuf {
             variants: iterator.collect::<TagVariants>(),
-            source:   ImageSourceBuf::Tensorflow(tag.into()),
+            source:   if tag.starts_with('=') {
+                ImageSourceBuf::Container(tag[1..].into())
+            } else {
+                ImageSourceBuf::Tensorflow(tag.into())
+            },
         })
     })
 }
