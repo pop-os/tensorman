@@ -73,16 +73,34 @@ tensorman =custom-container run --gpu bash
 
 ### Setting per-project
 
-If the `tensorflow-toolchain` file is found in the working directory, the release tag and tag variants defined within it will override the user-wide default version. This is useful for setting the tensorflow project per-project.
+There are two files that can be used for configuring Tensorman locally. The `tensorflow-toolchain` file can be used for quickly defining an image and its tags. The `Tensorman.toml` file can be used for defining more elaborate configuration files. The `tensorflow-toolchain` file overrides any values defined by `Tensorman.toml`, or the user-wide configuration file.
+
+#### tensorflow-toolchain
 
 ```toml
 1.14.0 gpu python3
 ```
 
-Or specifying a image:
+Or specifying a custom image:
 
 ```toml
 =custom-image gpu
+```
+
+#### Tensorman.toml
+
+Using a default tensorflow image:
+
+```toml
+tag = '2.0.0'
+variants = ['gpu', 'python3']
+```
+
+Defining a custom image:
+
+```toml
+image = 'custom-image'
+variants = ['gpu']
 ```
 
 ### Setting per-user

@@ -13,7 +13,7 @@ use anyhow::Context;
 use bollard::Docker;
 
 use self::{
-    config::{Config, Error as ConfigError},
+    config::Config,
     image::{Image, ImageBuf, ImageSource, ImageSourceBuf, TagVariants},
     runtime::Runtime,
 };
@@ -25,7 +25,7 @@ pub enum Error {
     #[error("invalid command-line usage")]
     ArgumentUsage(#[source] anyhow::Error),
     #[error("configuration error")]
-    Configure(#[source] ConfigError),
+    Configure(#[source] anyhow::Error),
     #[error("an error with docker was encountered")]
     Docker(#[source] anyhow::Error),
 }

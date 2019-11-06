@@ -1,39 +1,30 @@
 use crate::image::{ImageBuf, ImageSourceBuf, TagVariants};
 
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use std::{convert::TryFrom, fs, io, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use xdg::BaseDirectories;
-
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("failed to get the base directory")]
-    BaseDirectory(#[source] xdg::BaseDirectoriesError),
-    #[error("failed to get config path")]
-    ConfigPath(#[source] io::Error),
-    #[error("failed to read configuration file into memory")]
-    ConfigRead(#[source] io::Error),
-    #[error("failed to write serialized config to configuration file")]
-    ConfigWrite(#[source] io::Error),
-    #[error("failed to create the tensorman configuration directory")]
-    CreateDir(#[source] io::Error),
-    #[error("failed to deserialize the configuration file")]
-    Deserialize(#[source] toml::de::Error),
-}
 
 pub struct Config {
     pub image: Option<ImageBuf>,
 }
 
 impl Config {
-    pub fn read() -> Result<Self, Error> { RawConfig::read().and_then(Self::try_from) }
+    /// Read a config from either a local or user config
+    ///
+    /// The local config takes precedence over the user config.
+    /// If neither exists, a default config is returned.
+    pub fn read() -> anyhow::Result<Self> { RawConfig::read().map(Self::from) }
 
-    pub fn write(&self) -> Result<(), Error> { RawConfig::from(self).write() }
+    /// Write a config to the external configuration path
+    pub fn write(&self) -> anyhow::Result<()> { RawConfig::from(self).write() }
 }
 
-impl TryFrom<RawConfig> for Config {
-    type Error = Error;
-
-    fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
+impl From<RawConfig> for Config {
+    fn from(raw: RawConfig) -> Self {
         let RawConfig { image, tag, variants } = raw;
 
         let variants = variants.iter().flatten().map(String::as_str).collect::<TagVariants>();
@@ -41,10 +32,10 @@ impl TryFrom<RawConfig> for Config {
         let source = match (image, tag) {
             (Some(image), _) => ImageSourceBuf::Container(image.into()),
             (None, Some(tag)) => ImageSourceBuf::Tensorflow(tag.into()),
-            (None, None) => return Ok(Config { image: None }),
+            (None, None) => return Config { image: None },
         };
 
-        Ok(Config { image: Some(ImageBuf { variants, source }) })
+        Config { image: Some(ImageBuf { variants, source }) }
     }
 }
 
@@ -56,28 +47,51 @@ struct RawConfig {
 }
 
 impl RawConfig {
-    pub fn read() -> Result<Self, Error> {
-        let config_path = config_path()?;
+    pub fn read() -> anyhow::Result<Self> {
+        let config_path = match local_path()? {
+            Some(config_path) => config_path,
+            None => {
+                let config_path = user_path()?;
 
-        if !config_path.exists() {
-            return Ok(Self::default());
-        }
+                if !config_path.exists() {
+                    return Ok(Self::default());
+                }
 
-        let data = fs::read_to_string(&config_path).map_err(Error::ConfigRead)?;
+                config_path
+            }
+        };
 
-        toml::from_str::<Self>(&*data).map_err(Error::Deserialize)
+        let data = fs::read_to_string(&config_path).with_context(|| {
+            format!("failed to read configuration file at {}", config_path.display())
+        })?;
+
+        toml::from_str::<Self>(&*data).with_context(|| {
+            format!("failed to parse TOML in configuration file at {}", config_path.display())
+        })
     }
 
-    pub fn write(&self) -> Result<(), Error> {
-        let config_path = config_path()?;
+    pub fn write(&self) -> anyhow::Result<()> {
+        let config_path = user_path()?;
+
+        println!("writing to configuration file at {}", config_path.display());
 
         if !config_path.exists() {
             let parent = config_path.parent().expect("config path without parent directory");
-            fs::create_dir_all(parent).map_err(Error::CreateDir)?;
+            fs::create_dir_all(parent).with_context(|| {
+                format!(
+                    "failed to create the Tensorman configuration directory at {}",
+                    parent.display()
+                )
+            })?;
         }
 
         let data = toml::to_string_pretty(self).expect("failed to serialize config");
-        fs::write(config_path, data).map_err(Error::ConfigWrite)
+        fs::write(&config_path, data).with_context(|| {
+            format!(
+                "failed to write settings to Tensorman configuration file at {}",
+                config_path.display()
+            )
+        })
     }
 }
 
@@ -106,9 +120,32 @@ impl<'a> From<&'a Config> for RawConfig {
     }
 }
 
-fn config_path() -> Result<PathBuf, Error> {
+fn local_path() -> anyhow::Result<Option<PathBuf>> {
+    std::env::current_dir()
+        .context("failed to fetch the current working directory")
+        .map(|dir| walk_parent_directories(&dir, "Tensorman.toml"))
+}
+
+fn user_path() -> anyhow::Result<PathBuf> {
     BaseDirectories::with_prefix("tensorman")
-        .map_err(Error::BaseDirectory)?
+        .context("failed to find the XDG base directory for tensorman")?
         .place_config_file("config.toml")
-        .map_err(Error::ConfigPath)
+        .context("failed to fetch the user-wide Tensorman config path")
+}
+
+/// Walks up the directory tree to find a file
+fn walk_parent_directories(origin: &Path, file: &str) -> Option<PathBuf> {
+    let mut next = Some(origin);
+
+    while let Some(parent) = next {
+        let config = parent.join(file);
+
+        if config.exists() {
+            return Some(config);
+        }
+
+        next = parent.parent();
+    }
+
+    None
 }
