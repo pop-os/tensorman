@@ -101,6 +101,7 @@ impl Runtime {
         image: &Image,
         cmd: &str,
         name: Option<&str>,
+        port: Option<&str>,
         as_root: bool,
         args: Option<&[&str]>,
     ) -> anyhow::Result<()> {
@@ -126,6 +127,10 @@ impl Runtime {
                 name
             );
             command.arg("--name").arg(name);
+        }
+
+        if let Some(port) = port {
+            command.arg("-p").arg(port);
         }
 
         if image.variants.contains(TagVariants::GPU) {

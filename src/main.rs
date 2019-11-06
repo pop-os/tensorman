@@ -74,7 +74,9 @@ fn main_() -> Result<(), Error> {
     let mut force = false;
 
     let mut flagged_variants = TagVariants::empty();
+
     let mut name = None;
+    let mut port = None;
 
     let mut docker_func: fn() -> Result<Docker, failure::Error> =
         Docker::connect_with_local_defaults;
@@ -92,6 +94,15 @@ fn main_() -> Result<(), Error> {
                     arguments
                         .next()
                         .context("the --name flag requires a name as an argument")
+                        .map_err(Error::ArgumentUsage)?
+                        .as_str(),
+                );
+            }
+            "-p" | "--port" => {
+                port = Some(
+                    arguments
+                        .next()
+                        .context("the --port flag requires an argument")
                         .map_err(Error::ArgumentUsage)?
                         .as_str(),
                 );
@@ -180,7 +191,7 @@ fn main_() -> Result<(), Error> {
             let args: Option<&[&str]> = if args.is_empty() { None } else { Some(&args) };
 
             runtime
-                .run(&image, cmd, name, as_root, args)
+                .run(&image, cmd, name, port, as_root, args)
                 .context("failed to run container")
                 .map_err(Error::Docker)?;
         }
@@ -259,6 +270,9 @@ FLAGS:
 
     --name NAME
         Gives NAME to the container when it is launched
+
+    -p, --port
+        Specifies a port mapping for the container and host
 
     --python3
         Uses an image which supports Python3
