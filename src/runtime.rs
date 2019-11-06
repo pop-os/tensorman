@@ -104,6 +104,7 @@ impl Runtime {
         port: Option<&str>,
         as_root: bool,
         args: Option<&[&str]>,
+        docker_flags: Option<&[String]>,
     ) -> anyhow::Result<()> {
         let pwd = env::current_dir().context("unable to get the current working directory")?;
 
@@ -135,6 +136,10 @@ impl Runtime {
 
         if image.variants.contains(TagVariants::GPU) {
             command.arg("--gpus=all");
+        }
+
+        if let Some(args) = docker_flags {
+            command.args(args);
         }
 
         command.args(&[

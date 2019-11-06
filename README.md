@@ -77,13 +77,13 @@ There are two files that can be used for configuring Tensorman locally. The `ten
 
 #### tensorflow-toolchain
 
-```toml
+```
 1.14.0 gpu python3
 ```
 
 Or specifying a custom image:
 
-```toml
+```
 =custom-image gpu
 ```
 
@@ -140,6 +140,16 @@ To aid in discovering what containers are installed on the system, the `list` su
 
 ```
 tensorman list
+```
+
+## Setting additional Docker flags
+
+The config at `~/.config/tensorman/config.toml`, or a `Tensorman.toml` project config, supports defining addtional Docker flags when starting a container with the `docker_flags` key.
+
+```toml
+docker_flags = [ '-p', '8080:8080' ]
+image = 'custom-image'
+variants = ['gpu']
 ```
 
 ## Creating a custom image

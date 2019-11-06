@@ -9,7 +9,8 @@ use std::{fs, path::PathBuf};
 use xdg::BaseDirectories;
 
 pub struct Config {
-    pub image: Option<ImageBuf>,
+    pub image:        Option<ImageBuf>,
+    pub docker_flags: Option<Vec<String>>,
 }
 
 impl Config {
@@ -25,25 +26,26 @@ impl Config {
 
 impl From<RawConfig> for Config {
     fn from(raw: RawConfig) -> Self {
-        let RawConfig { image, tag, variants } = raw;
+        let RawConfig { docker_flags, image, tag, variants } = raw;
 
         let variants = variants.iter().flatten().map(String::as_str).collect::<TagVariants>();
 
         let source = match (image, tag) {
             (Some(image), _) => ImageSourceBuf::Container(image.into()),
             (None, Some(tag)) => ImageSourceBuf::Tensorflow(tag.into()),
-            (None, None) => return Config { image: None },
+            (None, None) => return Config { docker_flags, image: None },
         };
 
-        Config { image: Some(ImageBuf { variants, source }) }
+        Config { docker_flags, image: Some(ImageBuf { variants, source }) }
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Default, Serialize)]
 struct RawConfig {
-    pub image:    Option<String>,
-    pub tag:      Option<String>,
-    pub variants: Option<Vec<String>>,
+    pub image:        Option<String>,
+    pub tag:          Option<String>,
+    pub variants:     Option<Vec<String>>,
+    pub docker_flags: Option<Vec<String>>,
 }
 
 impl RawConfig {
@@ -95,10 +97,6 @@ impl RawConfig {
     }
 }
 
-impl Default for RawConfig {
-    fn default() -> Self { Self { image: None, tag: None, variants: None } }
-}
-
 impl<'a> From<&'a Config> for RawConfig {
     fn from(config: &'a Config) -> Self {
         let (image, tag, variants) = config.image.as_ref().map_or((None, None, None), |image| {
@@ -116,7 +114,7 @@ impl<'a> From<&'a Config> for RawConfig {
             (image, tag, variants)
         });
 
-        RawConfig { image, tag, variants }
+        RawConfig { image, tag, variants, docker_flags: config.docker_flags.clone() }
     }
 }
 
@@ -132,4 +130,3 @@ fn user_path() -> anyhow::Result<PathBuf> {
         .place_config_file("config.toml")
         .context("failed to fetch the user-wide Tensorman config path")
 }
-

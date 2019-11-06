@@ -153,7 +153,8 @@ fn main_() -> Result<(), Error> {
 
             let variants = subcommand_args.collect::<TagVariants>();
 
-            let new_config = Config { image: Some(ImageBuf { variants, source }) };
+            let new_config =
+                Config { docker_flags: None, image: Some(ImageBuf { variants, source }) };
 
             new_config.write().map_err(Error::Configure)?;
         }
@@ -190,9 +191,10 @@ fn main_() -> Result<(), Error> {
 
             let args: Vec<&str> = subcommand_args.collect();
             let args: Option<&[&str]> = if args.is_empty() { None } else { Some(&args) };
+            let dflags = config.docker_flags.as_ref().map(Vec::as_slice);
 
             runtime
-                .run(&image, cmd, name, port, as_root, args)
+                .run(&image, cmd, name, port, as_root, args, dflags)
                 .context("failed to run container")
                 .map_err(Error::Docker)?;
         }
