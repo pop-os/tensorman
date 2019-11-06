@@ -65,17 +65,19 @@ If a version is specified following a `+` argument, `tensorman` will prefer this
 tensorman +1.14.0 run --python3 --gpu bash
 ```
 
-Custom containers may be specified with a `=` argument.
+Custom images may be specified with a `=` argument.
 
 ```
-tensorman =custom-container run --gpu bash
+tensorman =custom-image run --gpu bash
 ```
 
 ### Setting per-project
 
-There are two files that can be used for configuring Tensorman locally. The `tensorflow-toolchain` file can be used for quickly defining an image and its tags. The `Tensorman.toml` file can be used for defining more elaborate configuration files. The `tensorflow-toolchain` file overrides any values defined by `Tensorman.toml`, or the user-wide configuration file.
+There are two files that can be used for configuring Tensorman locally: `tensorflow-toolchain`, and `Tensorman.toml`. These files will be automatically detected if they can be found in a parent directory.
 
 #### tensorflow-toolchain
+
+This file overrides the tensorflow image, defined either in `Tensorman.toml`, or the user-wide configuration file.
 
 ```
 1.14.0 gpu python3
@@ -89,9 +91,12 @@ Or specifying a custom image:
 
 #### Tensorman.toml
 
+This file supports additional configuration parameters, with a user-wide configuration located at `~/.config/tensorman/config.toml`, and a project-wide location at `Tensorman.toml`. One of the reasons in which you may want to use this file is to declare some additional Docker flags, with the `docker_flags` key.
+
 Using a default tensorflow image:
 
 ```toml
+docker_flags = [ '-p', '8080:8080' ]
 tag = '2.0.0'
 variants = ['gpu', 'python3']
 ```
@@ -99,6 +104,7 @@ variants = ['gpu', 'python3']
 Defining a custom image:
 
 ```toml
+docker_flags = [ '-p', '8080:8080' ]
 image = 'custom-image'
 variants = ['gpu']
 ```
@@ -140,16 +146,6 @@ To aid in discovering what containers are installed on the system, the `list` su
 
 ```
 tensorman list
-```
-
-## Setting additional Docker flags
-
-The config at `~/.config/tensorman/config.toml`, or a `Tensorman.toml` project config, supports defining addtional Docker flags when starting a container with the `docker_flags` key.
-
-```toml
-docker_flags = [ '-p', '8080:8080' ]
-image = 'custom-image'
-variants = ['gpu']
 ```
 
 ## Creating a custom image
