@@ -138,6 +138,8 @@ impl Runtime {
             command.arg("--gpus=all");
         }
 
+        command.arg("-e").arg("HOME=/project");
+
         if let Some(args) = docker_flags {
             command.args(args);
         }
