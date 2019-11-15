@@ -1,8 +1,13 @@
 [package]
 name = "tensorman"
 version = "0.1.0"
+repository = "https://github.com/pop-os/tensorman"
 authors = ["Michael Aaron Murphy <mmstick@pm.me>"]
+description = "Tensorflow Docker Container Manager"
+keywords = ["tensorflow", "docker"]
+categories = [ "development-tools" ]
 license = "GPL-3.0"
+readme = "README.md"
 edition = "2018"
 
 [dependencies]
