@@ -16,7 +16,7 @@ Architecture: amd64
 Depends:
   ${misc:Depends},
   ${shlib:Depends},
-  docker.io,
+  docker.io | docker-ce,
 Suggests:
   nvidia-container-runtime
 Description: Tensorflow docker image manager
