@@ -109,6 +109,12 @@ image = 'custom-image'
 variants = ['gpu']
 ```
 
+One useful docker flag is the `-v` flag, that can be used at runtime to mount other directories not included in your image.  The syntax for the argument of `-v` is `source:destination`.  For example, if you have a large dataset in your home directory that you don't want to include as part of your image, you can mount it at runtime by addding the following line to your `config.toml` file:
+
+```toml
+docker_flags = [ '-v', '/home/_your_username_/dataset:/home/_your_username_/dataset' ]
+```
+
 ### Setting per-user
 
 you can set a default version user-wide using the `default` subcommand. This version of Tensorflow will be launched whenever you use the `tensorman run` command.
