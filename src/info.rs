@@ -1,5 +1,5 @@
-use bollard::image::APIImages;
-use chrono::{DateTime, Utc};
+use bollard::models::ImageSummary;
+use chrono::{DateTime, NaiveDateTime, Utc};
 
 #[derive(Debug)]
 pub struct Info {
@@ -7,7 +7,7 @@ pub struct Info {
     pub tag:      Box<str>,
     pub image_id: Box<str>,
     pub created:  DateTime<Utc>,
-    pub size:     u64,
+    pub size:     i64,
 }
 
 impl Info {
@@ -23,21 +23,22 @@ impl Info {
     }
 }
 
-pub fn iterate_image_info(images: Vec<APIImages>) -> impl Iterator<Item = Info> {
+pub fn iterate_image_info(images: Vec<ImageSummary>) -> impl Iterator<Item = Info> {
     fn valid_tag(tag: &str) -> bool {
         tag.starts_with("tensorflow/tensorflow:") || tag.starts_with("tensorman:")
     }
 
     images
         .into_iter()
-        .filter(|image| image.repo_tags.as_ref().map_or(false, |tags| valid_tag(&*tags[0])))
+        .filter(|image| valid_tag(&image.repo_tags[0]))
         .flat_map(|image| {
-            let mut image_tags = image.repo_tags.unwrap();
+            let mut image_tags = image.repo_tags;
 
             let mut tags = Vec::new();
             std::mem::swap(&mut tags, &mut image_tags);
 
-            let APIImages { created, size, id, .. } = image;
+            let ImageSummary { created, size, id, .. } = image;
+            let created = DateTime::from_utc(NaiveDateTime::from_timestamp(created, 0), Utc);
 
             tags.into_iter().map(move |tag| {
                 let mut fields = tag.split(':');

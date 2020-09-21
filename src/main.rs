@@ -79,7 +79,7 @@ fn main_() -> Result<(), Error> {
     let mut name = None;
     let mut port = None;
 
-    let mut docker_func: fn() -> Result<Docker, failure::Error> =
+    let mut docker_func: fn() -> Result<Docker, bollard::errors::Error> =
         Docker::connect_with_local_defaults;
 
     while let Some(argument) = arguments.next() {
@@ -88,7 +88,7 @@ fn main_() -> Result<(), Error> {
             "--" => break,
             "-f" | "--force" => force = true,
             "--gpu" => flagged_variants |= TagVariants::GPU,
-            "--https" => docker_func = Docker::connect_with_tls_defaults,
+            "--https" => docker_func = Docker::connect_with_ssl_defaults,
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
             "--name" => {
                 name = Some(

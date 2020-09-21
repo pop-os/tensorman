@@ -1,7 +1,8 @@
 use anyhow::Context;
 use bollard::{
-    container::{APIContainers, ListContainersOptions},
-    image::{APIImages, ListImagesOptions},
+    container::{ ListContainersOptions},
+    image::{ListImagesOptions},
+    models::{ContainerSummary, ImageSummary},
     Docker,
 };
 
@@ -22,30 +23,27 @@ pub struct Runtime {
 
 impl Runtime {
     /// Creates a new runtime for interacting with Docker.
-    pub fn new(docker_func: fn() -> Result<Docker, failure::Error>) -> anyhow::Result<Self> {
+    pub fn new(docker_func: fn() -> Result<Docker, bollard::errors::Error>) -> anyhow::Result<Self> {
         Ok(Self {
             docker: docker_func()
-                .map_err(|failure| failure.compat())
                 .context("failed to establish a connection to the Docker service")?,
             tokio:  TokioRuntime::new().context("failed to create tokio runtime")?,
         })
     }
 
     /// Fetches a list of docker containers.
-    pub fn containers(&mut self) -> anyhow::Result<Vec<APIContainers>> {
+    pub fn containers(&mut self) -> anyhow::Result<Vec<ContainerSummary>> {
         let options = ListContainersOptions::<String> { all: true, ..Default::default() };
         self.tokio
             .block_on(self.docker.list_containers(Some(options)))
-            .map_err(|failure| failure.compat())
             .context("failed to fetch list of containers from Docker service")
     }
 
     /// Fetches a list of docker images.
-    pub fn images(&mut self) -> anyhow::Result<Vec<APIImages>> {
+    pub fn images(&mut self) -> anyhow::Result<Vec<ImageSummary>> {
         let options = ListImagesOptions::<String> { all: true, ..Default::default() };
         self.tokio
             .block_on(self.docker.list_images(Some(options)))
-            .map_err(|failure| failure.compat())
             .context("failed to fetch list of images from Docker service")
     }
 
@@ -204,7 +202,7 @@ impl Runtime {
             |vec: &[String]| vec.iter().filter(|s| !s.is_empty()).any(|e| &e[1..] == name);
 
         self.containers()
-            .map(|cts| cts.into_iter().any(|container| contains_name(&container.names)))
+            .map(|cts| cts.into_iter().any(|container| container.names.map_or(false, |v| contains_name(&v))))
     }
 }
 
