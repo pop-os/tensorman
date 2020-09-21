@@ -12,6 +12,7 @@ mod toolchain;
 
 use anyhow::Context;
 use bollard::Docker;
+use tempfile::NamedTempFile;
 
 use self::{
     config::Config,
@@ -20,6 +21,7 @@ use self::{
 };
 
 use std::{env::args, error::Error as _, process::exit};
+use std::process::Command;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -29,6 +31,18 @@ pub enum Error {
     Configure(#[source] anyhow::Error),
     #[error("an error with docker was encountered")]
     Docker(#[source] anyhow::Error),
+}
+
+pub fn docker_connect_with_podman() -> Result<Docker, bollard::errors::Error> {
+    let file = NamedTempFile::new().unwrap();
+    let path = format!("unix:///{}", file.path().display());
+    file.keep().unwrap();
+    Command::new("podman")
+            .args(&["system", "service", &path])
+            .spawn()
+            .unwrap(); // XXX
+    std::thread::sleep(std::time::Duration::from_millis(1000));
+    Ok(Docker::connect_with_unix(&path, 120, bollard::API_DEFAULT_VERSION)?)
 }
 
 fn main_() -> Result<(), Error> {
@@ -81,7 +95,7 @@ fn main_() -> Result<(), Error> {
 
     let mut docker_func: fn() -> Result<Docker, bollard::errors::Error> =
         Docker::connect_with_local_defaults;
-    let docker_cmd = "docker";
+    let mut docker_cmd = "docker";
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -90,6 +104,10 @@ fn main_() -> Result<(), Error> {
             "-f" | "--force" => force = true,
             "--gpu" => flagged_variants |= TagVariants::GPU,
             "--https" => docker_func = Docker::connect_with_ssl_defaults,
+            "--podman-experimental" => {
+                docker_func = docker_connect_with_podman;
+                docker_cmd = "podman";
+            }
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
             "--name" => {
                 name = Some(
