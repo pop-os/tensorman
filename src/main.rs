@@ -81,6 +81,7 @@ fn main_() -> Result<(), Error> {
 
     let mut docker_func: fn() -> Result<Docker, failure::Error> =
         Docker::connect_with_local_defaults;
+    let docker_cmd = "docker";
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -136,7 +137,7 @@ fn main_() -> Result<(), Error> {
         },
     };
 
-    let mut runtime = Runtime::new(docker_func).map_err(Error::Docker)?;
+    let mut runtime = Runtime::new(docker_func, docker_cmd).map_err(Error::Docker)?;
 
     match subcommand {
         "default" => {
@@ -167,7 +168,7 @@ fn main_() -> Result<(), Error> {
                 image.variants = flagged_variants;
             }
 
-            image.pull().context("failed to pull image").map_err(Error::Docker)?;
+            image.pull(docker_cmd).context("failed to pull image").map_err(Error::Docker)?;
         }
         "remove" => {
             if subcommand_args.len() == 0 {
