@@ -18,15 +18,17 @@ use tokio::runtime::Runtime as TokioRuntime;
 /// Runtime for executing Docker futures on.
 pub struct Runtime {
     pub docker: Docker,
+    docker_cmd: &'static str,
     pub tokio:  TokioRuntime,
 }
 
 impl Runtime {
     /// Creates a new runtime for interacting with Docker.
-    pub fn new(docker_func: fn() -> Result<Docker, bollard::errors::Error>) -> anyhow::Result<Self> {
+    pub fn new(docker_func: fn() -> Result<Docker, bollard::errors::Error>, docker_cmd: &'static str) -> anyhow::Result<Self> {
         Ok(Self {
             docker: docker_func()
                 .context("failed to establish a connection to the Docker service")?,
+            docker_cmd,
             tokio:  TokioRuntime::new().context("failed to create tokio runtime")?,
         })
     }
@@ -82,7 +84,7 @@ impl Runtime {
         for info in iterate_image_info(images) {
             if info.field_matches(argument) {
                 found = true;
-                docker_remove_image(&info, force).context("failed to remove the docker image")?;
+                self.docker_remove_image(&info, force).context("failed to remove the docker image")?;
             }
         }
 
@@ -106,7 +108,7 @@ impl Runtime {
     ) -> anyhow::Result<()> {
         let pwd = env::current_dir().context("unable to get the current working directory")?;
 
-        let mut command = Command::new("docker");
+        let mut command = Command::new(self.docker_cmd);
 
         let user_: String;
         let user: &str = if as_root {
@@ -190,7 +192,7 @@ impl Runtime {
 
         // self.tokio.block_on(future).map_err(|failure| failure.compat())
 
-        commit_command(container, repo).context("failed to commit container")?;
+        self.commit_command(container, repo).context("failed to commit container")?;
 
         Ok(())
     }
@@ -204,20 +206,20 @@ impl Runtime {
         self.containers()
             .map(|cts| cts.into_iter().any(|container| container.names.map_or(false, |v| contains_name(&v))))
     }
-}
 
-fn commit_command(container: &str, repo: &str) -> io::Result<()> {
-    let image = ["tensorman:", repo].concat();
-    Command::new("docker").args(&["commit", container, &image]).status().map(|_| ())
-}
-
-fn docker_remove_image(info: &Info, force: bool) -> io::Result<()> {
-    let mut command = Command::new("docker");
-    command.args(&["rmi", &info.image_id]);
-
-    if force {
-        command.arg("--force");
+    fn commit_command(&self, container: &str, repo: &str) -> io::Result<()> {
+        let image = ["tensorman:", repo].concat();
+        Command::new(self.docker_cmd).args(&["commit", container, &image]).status().map(|_| ())
     }
 
-    command.status().map(|_| ())
+    fn docker_remove_image(&self, info: &Info, force: bool) -> io::Result<()> {
+        let mut command = Command::new(self.docker_cmd);
+        command.args(&["rmi", &info.image_id]);
+
+        if force {
+            command.arg("--force");
+        }
+
+        command.status().map(|_| ())
+    }
 }

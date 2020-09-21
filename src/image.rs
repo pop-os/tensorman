@@ -77,8 +77,8 @@ pub enum ImageSource<'a> {
 }
 
 impl<'a> Image<'a> {
-    pub fn pull(&self) -> io::Result<()> {
-        let mut command = Command::new("docker");
+    pub fn pull(&self, docker_cmd: &str) -> io::Result<()> {
+        let mut command = Command::new(docker_cmd);
         command.args(&["pull", &String::from(self)]);
         eprintln!("{:?}", command);
         command.status().map(|_| ())
