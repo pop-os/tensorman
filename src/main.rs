@@ -78,7 +78,7 @@ fn main_() -> Result<(), Error> {
     let mut name = None;
     let mut port = None;
 
-    let docker_cmd = "docker";
+    let mut docker_cmd = "docker";
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -87,6 +87,14 @@ fn main_() -> Result<(), Error> {
             "-f" | "--force" => force = true,
             "--gpu" => flagged_variants |= TagVariants::GPU,
             "--https" => {},
+            "--docker-cmd" => {
+                docker_cmd =
+                    arguments
+                        .next()
+                        .context("the --docker-cmd flag requires an argument")
+                        .map_err(Error::ArgumentUsage)?
+                        .as_str()
+            }
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
             "--name" => {
                 name = Some(
@@ -263,8 +271,8 @@ FLAGS:
     --gpu
         Uses an image which supports GPU compute
     
-    --https
-        Connect to Docker via HTTPS (defined in DOCKER_HOST env variable)
+    --docker-cmd COMMAND
+        Call COMMAND when invoking docker
 
     --jupyter
         Usages an image which has Jupyter preinstalled

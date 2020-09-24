@@ -26,13 +26,13 @@ pub struct DockerImage {
     pub Size: String,
 }
 
-pub struct Runtime {
-    docker_cmd: &'static str,
+pub struct Runtime<'a> {
+    docker_cmd: &'a str,
 }
 
-impl Runtime {
+impl<'a> Runtime<'a> {
     /// Creates a new runtime for interacting with Docker.
-    pub fn new(docker_cmd: &'static str) -> anyhow::Result<Self> {
+    pub fn new(docker_cmd: &'a str) -> anyhow::Result<Self> {
         Ok(Self {
             docker_cmd,
         })
