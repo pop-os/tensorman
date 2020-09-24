@@ -11,7 +11,6 @@ mod runtime;
 mod toolchain;
 
 use anyhow::Context;
-use bollard::Docker;
 
 use self::{
     config::Config,
@@ -79,8 +78,6 @@ fn main_() -> Result<(), Error> {
     let mut name = None;
     let mut port = None;
 
-    let mut docker_func: fn() -> Result<Docker, failure::Error> =
-        Docker::connect_with_local_defaults;
     let docker_cmd = "docker";
 
     while let Some(argument) = arguments.next() {
@@ -89,7 +86,7 @@ fn main_() -> Result<(), Error> {
             "--" => break,
             "-f" | "--force" => force = true,
             "--gpu" => flagged_variants |= TagVariants::GPU,
-            "--https" => docker_func = Docker::connect_with_tls_defaults,
+            "--https" => {},
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
             "--name" => {
                 name = Some(
@@ -137,7 +134,7 @@ fn main_() -> Result<(), Error> {
         },
     };
 
-    let mut runtime = Runtime::new(docker_func, docker_cmd).map_err(Error::Docker)?;
+    let mut runtime = Runtime::new(docker_cmd).map_err(Error::Docker)?;
 
     match subcommand {
         "default" => {

@@ -1,54 +1,74 @@
 use anyhow::Context;
-use bollard::{
-    container::{APIContainers, ListContainersOptions},
-    image::{APIImages, ListImagesOptions},
-    Docker,
-};
 
 use crate::{
     image::{Image, TagVariants},
     info::{iterate_image_info, Info},
 };
 use nix::unistd::geteuid;
+use serde::Deserialize;
+use serde_json;
 use std::{env, io, process::Command};
 use tabular::{Row, Table};
-use tokio::runtime::Runtime as TokioRuntime;
 
-/// Runtime for executing Docker futures on.
+#[derive(Deserialize)]
+#[allow(non_snake_case)]
+pub struct DockerContainer {
+    Names: String,
+}
+
+#[derive(Deserialize)]
+#[allow(non_snake_case)]
+pub struct DockerImage {
+    pub Repository: String,
+    pub Tag: String,
+    pub CreatedAt: String,
+    pub ID: String,
+    pub Size: String,
+}
+
 pub struct Runtime {
-    pub docker: Docker,
     docker_cmd: &'static str,
-    pub tokio:  TokioRuntime,
 }
 
 impl Runtime {
     /// Creates a new runtime for interacting with Docker.
-    pub fn new(docker_func: fn() -> Result<Docker, failure::Error>, docker_cmd: &'static str) -> anyhow::Result<Self> {
+    pub fn new(docker_cmd: &'static str) -> anyhow::Result<Self> {
         Ok(Self {
-            docker: docker_func()
-                .map_err(|failure| failure.compat())
-                .context("failed to establish a connection to the Docker service")?,
             docker_cmd,
-            tokio:  TokioRuntime::new().context("failed to create tokio runtime")?,
         })
     }
 
     /// Fetches a list of docker containers.
-    pub fn containers(&mut self) -> anyhow::Result<Vec<APIContainers>> {
-        let options = ListContainersOptions::<String> { all: true, ..Default::default() };
-        self.tokio
-            .block_on(self.docker.list_containers(Some(options)))
-            .map_err(|failure| failure.compat())
-            .context("failed to fetch list of containers from Docker service")
+    pub fn containers(&mut self) -> anyhow::Result<Vec<DockerContainer>> {
+        let context = "failed to fetch list of containers from Docker service";
+
+        let json = self.call_docker_output(&[
+            "container",
+            "ls",
+            "--format",
+            "{{json .}}",
+        ]).context(context)?;
+
+        Ok(serde_json::Deserializer::from_slice(&json)
+                                    .into_iter::<DockerContainer>()
+                                    .collect::<Result<_, _>>()
+                                    .context(context)?)
     }
 
     /// Fetches a list of docker images.
-    pub fn images(&mut self) -> anyhow::Result<Vec<APIImages>> {
-        let options = ListImagesOptions::<String> { all: true, ..Default::default() };
-        self.tokio
-            .block_on(self.docker.list_images(Some(options)))
-            .map_err(|failure| failure.compat())
-            .context("failed to fetch list of images from Docker service")
+    pub fn images(&mut self) -> anyhow::Result<Vec<DockerImage>> {
+        let context = "failed to fetch list of images from Docker service";
+
+        let json = self.call_docker_output(&[
+            "images",
+            "--format",
+            "{{json .}}",
+        ]).context(context)?;
+
+        Ok(serde_json::Deserializer::from_slice(&json)
+                                    .into_iter::<DockerImage>()
+                                    .collect::<Result<_, _>>()
+                                    .context(context)?)
     }
 
     /// Displays docker images currently installed which are relevant to tensorman.
@@ -69,7 +89,7 @@ impl Runtime {
                 Row::new()
                     .with_cell(info.repo)
                     .with_cell(info.tag)
-                    .with_cell(&info.image_id[..=14])
+                    .with_cell(&info.image_id)
                     .with_cell(info.size),
             );
         }
@@ -202,11 +222,9 @@ impl Runtime {
     /// Queries docker for a list of containers, and returns `Ok(true)` if container
     /// with a compatible name is found.
     fn container_exists(&mut self, name: &str) -> anyhow::Result<bool> {
-        let contains_name =
-            |vec: &[String]| vec.iter().filter(|s| !s.is_empty()).any(|e| &e[1..] == name);
-
-        self.containers()
-            .map(|cts| cts.into_iter().any(|container| contains_name(&container.names)))
+        Ok(self.containers()?
+               .iter()
+               .any(|c| c.Names.split(", ").any(|e| e == name)))
     }
 
     fn commit_command(&self, container: &str, repo: &str) -> io::Result<()> {
@@ -223,5 +241,16 @@ impl Runtime {
         }
 
         command.status().map(|_| ())
+    }
+
+    fn call_docker_output(&self, args: &[&str]) -> anyhow::Result<Vec<u8>> {
+        let mut command = Command::new(self.docker_cmd);
+        command.args(args);
+        let output = command.output()?;
+        if output.status.success() {
+            Ok(output.stdout)
+        } else {
+            Err(anyhow::Error::msg(String::from_utf8_lossy(&output.stderr).trim().to_string()))
+        }
     }
 }
