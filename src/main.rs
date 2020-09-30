@@ -78,7 +78,8 @@ fn main_() -> Result<(), Error> {
     let mut name = None;
     let mut port = None;
 
-    let mut docker_cmd = "docker";
+    let mut docker_cmd = None;
+    let mut podman = false;
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -88,13 +89,15 @@ fn main_() -> Result<(), Error> {
             "--gpu" => flagged_variants |= TagVariants::GPU,
             "--https" => {},
             "--docker-cmd" => {
-                docker_cmd =
+                docker_cmd = Some(
                     arguments
                         .next()
                         .context("the --docker-cmd flag requires an argument")
                         .map_err(Error::ArgumentUsage)?
                         .as_str()
+                );
             }
+            "--podman" => podman = true,
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
             "--name" => {
                 name = Some(
@@ -127,6 +130,14 @@ fn main_() -> Result<(), Error> {
         }
     }
 
+    let docker_cmd = if let Some(cmd) = docker_cmd {
+        cmd
+    } else if podman {
+        "podman"
+    } else {
+        "docker"
+    };
+
     subcommand_args.extend(arguments.map(|x| x.as_str()));
     let mut subcommand_args = subcommand_args.into_iter();
 
@@ -142,7 +153,7 @@ fn main_() -> Result<(), Error> {
         },
     };
 
-    let mut runtime = Runtime::new(docker_cmd).map_err(Error::Docker)?;
+    let mut runtime = Runtime::new(docker_cmd, podman).map_err(Error::Docker)?;
 
     match subcommand {
         "default" => {

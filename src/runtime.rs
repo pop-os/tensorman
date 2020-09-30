@@ -28,13 +28,15 @@ pub struct DockerImage {
 
 pub struct Runtime<'a> {
     docker_cmd: &'a str,
+    podman: bool,
 }
 
 impl<'a> Runtime<'a> {
     /// Creates a new runtime for interacting with Docker.
-    pub fn new(docker_cmd: &'a str) -> anyhow::Result<Self> {
+    pub fn new(docker_cmd: &'a str, podman: bool) -> anyhow::Result<Self> {
         Ok(Self {
             docker_cmd,
+            podman,
         })
     }
 
@@ -156,7 +158,7 @@ impl<'a> Runtime<'a> {
             command.arg("-p").arg(port);
         }
 
-        if image.variants.contains(TagVariants::GPU) {
+        if image.variants.contains(TagVariants::GPU) && !self.podman {
             command.arg("--gpus=all");
         }
 
