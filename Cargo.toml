@@ -12,6 +12,7 @@ edition = "2018"
 
 [dependencies]
 bitflags = "1.2"
+clap = "2.33"
 nix = "0.15"
 tabular = "0.1"
 xdg = "2.2"
