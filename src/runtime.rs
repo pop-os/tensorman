@@ -123,7 +123,7 @@ impl<'a> Runtime<'a> {
         image: &Image,
         cmd: &str,
         name: Option<&str>,
-        port: Option<&str>,
+        ports: Vec<&str>,
         as_root: bool,
         args: Option<&[&str]>,
         docker_flags: Option<&[String]>,
@@ -152,7 +152,7 @@ impl<'a> Runtime<'a> {
             command.arg("--name").arg(name);
         }
 
-        if let Some(port) = port {
+        for port in ports {
             command.arg("-p").arg(port);
         }
 

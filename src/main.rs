@@ -76,7 +76,7 @@ fn main_() -> Result<(), Error> {
     let mut flagged_variants = TagVariants::empty();
 
     let mut name = None;
-    let mut port = None;
+    let mut ports = Vec::new();
 
     let mut docker_cmd = "docker";
 
@@ -106,7 +106,7 @@ fn main_() -> Result<(), Error> {
                 );
             }
             "-p" | "--port" => {
-                port = Some(
+                ports.push(
                     arguments
                         .next()
                         .context("the --port flag requires an argument")
@@ -200,7 +200,7 @@ fn main_() -> Result<(), Error> {
             let dflags = config.docker_flags.as_ref().map(Vec::as_slice);
 
             runtime
-                .run(&image, cmd, name, port, as_root, args, dflags)
+                .run(&image, cmd, name, ports, as_root, args, dflags)
                 .context("failed to run container")
                 .map_err(Error::Docker)?;
         }
