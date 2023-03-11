@@ -275,7 +275,7 @@ FLAGS:
         Call COMMAND when invoking docker
 
     --jupyter
-        Usages an image which has Jupyter preinstalled
+        Uses an image which has Jupyter preinstalled
 
     --name NAME
         Gives NAME to the container when it is launched
