@@ -5,6 +5,7 @@ use std::{
 };
 
 bitflags::bitflags! {
+    #[derive(Debug, Copy, Clone)]
     pub struct TagVariants: u8 {
         const GPU = 1;
         const PY3 = 1 << 1;
