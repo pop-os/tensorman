@@ -86,14 +86,13 @@ fn main_() -> Result<(), Error> {
             "--" => break,
             "-f" | "--force" => force = true,
             "--gpu" => flagged_variants |= TagVariants::GPU,
-            "--https" => {},
+            "--https" => {}
             "--docker-cmd" => {
-                docker_cmd =
-                    arguments
-                        .next()
-                        .context("the --docker-cmd flag requires an argument")
-                        .map_err(Error::ArgumentUsage)?
-                        .as_str()
+                docker_cmd = arguments
+                    .next()
+                    .context("the --docker-cmd flag requires an argument")
+                    .map_err(Error::ArgumentUsage)?
+                    .as_str()
             }
             "--jupyter" => flagged_variants |= TagVariants::JUPYTER,
             "--name" => {

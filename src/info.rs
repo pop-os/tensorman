@@ -22,19 +22,12 @@ impl Info {
 }
 
 pub fn iterate_image_info(images: Vec<DockerImage>) -> impl Iterator<Item = Info> {
-    fn valid_repo(repo: &str) -> bool {
-        repo == "tensorflow/tensorflow" || repo == "tensorman"
-    }
+    fn valid_repo(repo: &str) -> bool { repo == "tensorflow/tensorflow" || repo == "tensorman" }
 
-    images
-        .into_iter()
-        .filter(|image| valid_repo(&image.Repository))
-        .map(|image| {
-            Info {
-                repo: image.Repository.into(),
-                tag: image.Tag.into(),
-                image_id: image.ID.into(),
-                size: image.Size.into(),
-            }
-        })
+    images.into_iter().filter(|image| valid_repo(&image.Repository)).map(|image| Info {
+        repo:     image.Repository.into(),
+        tag:      image.Tag.into(),
+        image_id: image.ID.into(),
+        size:     image.Size.into(),
+    })
 }
